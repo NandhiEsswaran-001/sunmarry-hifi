@@ -3,7 +3,7 @@ require_once 'auth.php';
 requireLogin();
 
 // Only allow super_admin and manager roles
-if (getUserRole() === 'customer') {
+if (isCustomerRole()) {
     header('Location: access_denied.php');
     exit();
 }
@@ -662,8 +662,8 @@ $districtsMap = [
             
                 <!-- 27. Notes (editable only in edit.php) -->
                 <div class="col-12 mb-3">
-                    <label for="notes" class="form-label">குறிப்பு / Notes</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Add internal notes here (visible on view page)"><?php echo htmlspecialchars($profile['notes'] ?? ''); ?></textarea>
+                    <label for="notes" class="form-label">குறிப்பு விவரங்கள்</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="குறிப்பு விவரங்களை உள்ளிடவும்"><?php echo htmlspecialchars($profile['notes'] ?? ''); ?></textarea>
                 </div>
             </div>
 

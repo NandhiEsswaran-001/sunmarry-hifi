@@ -35,6 +35,27 @@ $selectedEducation = isset($_GET['education']) ? (array)$_GET['education'] : [];
 $selectedDosham = isset($_GET['dosham']) ? (array)$_GET['dosham'] : [];
 $phone = $_GET['phone'] ?? ''; // mobile search (visible to super_admin & manager only in UI)
 $name = $_GET['name'] ?? '';
+$id_search = isset($_GET['id_search']) ? trim($_GET['id_search']) : '';
+
+$role = getUserRole();
+$isNormalCustomer = ($role === 'customer');
+$isSpecialCustomer = ($role === 'special_customer');
+$isCustomerRole = isCustomerRole();
+
+// Enforce role-based search permissions
+if ($isNormalCustomer) {
+    $selectedDistricts = [];
+    $selectedDosham = [];
+}
+if ($isCustomerRole) {
+    // Customers don't use admin-only filters
+    $phone = '';
+    $city = '';
+    $name = '';
+    $selectedNakshatram = [];
+    $id_from = '';
+    $id_to = '';
+}
 
 // Define caste and subcaste relationships
 // Subcaste mapping removed (subcaste is no longer treated as a separate searchable field)
@@ -57,19 +78,6 @@ $educationOptions = [
     'முதுகலை (PG)'
 ];
 
-// Prepare WHERE clause
-if ($id_from !== '' && $id_to !== '') {
-    $where[] = "id BETWEEN ? AND ?";
-    $params[] = min($id_from, $id_to);
-    $params[] = max($id_from, $id_to);
-} elseif ($id_from !== '') {
-    $where[] = "id >= ?";
-    $params[] = $id_from;
-} elseif ($id_to !== '') {
-    $where[] = "id <= ?";
-    $params[] = $id_to;
-}
-
 // Initialize where/params and by default exclude deleted profiles unless explicitly requested
 $where = [];
 $params = [];
@@ -78,17 +86,22 @@ if (!$show_deleted) {
     $where[] = 'deleted_at IS NULL';
 }
 
-// Handle ID range filter (moved below initialization)
-if ($id_from !== '' && $id_to !== '') {
-    $where[] = "id BETWEEN ? AND ?";
-    $params[] = min($id_from, $id_to);
-    $params[] = max($id_from, $id_to);
-} elseif ($id_from !== '') {
-    $where[] = "id >= ?";
-    $params[] = $id_from;
-} elseif ($id_to !== '') {
-    $where[] = "id <= ?";
-    $params[] = $id_to;
+// Handle ID search (exact) or range
+if ($id_search !== '') {
+    $where[] = "id = ?";
+    $params[] = $id_search;
+} else {
+    if ($id_from !== '' && $id_to !== '') {
+        $where[] = "id BETWEEN ? AND ?";
+        $params[] = min($id_from, $id_to);
+        $params[] = max($id_from, $id_to);
+    } elseif ($id_from !== '') {
+        $where[] = "id >= ?";
+        $params[] = $id_from;
+    } elseif ($id_to !== '') {
+        $where[] = "id <= ?";
+        $params[] = $id_to;
+    }
 }
 
 // Handle age range filter
@@ -335,16 +348,18 @@ $districtsMap = [
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2>சுயவிவரங்களை காண்</h2>
-            <?php if (getUserRole() === 'customer'):
+            <?php if (isCustomerRole()):
                 $pdo = getDB();
                 $user_id = $_SESSION['user_id'];
                 $stmt = $pdo->prepare("SELECT credits FROM users WHERE id = ?");
                 $stmt->execute([$user_id]);
                 $credits = $stmt->fetchColumn();
-                $credits = $credits === null ? 20 : (int)$credits;
+                $limit = getCustomerCreditLimit();
+                $credits = $credits === null ? $limit : (int)$credits;
+                $credits = min($credits, $limit);
             ?>
                 <div class="alert alert-info mb-0">
-                    Profiles remaining: <strong><?php echo $credits; ?>/20</strong>
+                    Profiles remaining: <strong><?php echo $credits; ?>/<?php echo $limit; ?></strong>
                 </div>
             <?php endif; ?>
         </div>
@@ -518,6 +533,7 @@ $districtsMap = [
                         </div>
                     </div>
 
+                    <?php if (!$isNormalCustomer): ?>
                     <div class="col-md-4">
                         <label class="form-label">மாவட்டங்கள்</label>
                         <div class="district-dropdown dropdown">
@@ -543,9 +559,9 @@ $districtsMap = [
                             </div>
                         </div>
                     </div>
-
-                    <?php if (getUserRole() !== 'customer'): ?>
-                    <!-- Row 3: தோசம் (Dosham)/ நட்சத்திரம் (Nakshatram)/ வசிக்கும் ஊர் - Admin & Manager Only -->
+                    <?php endif; ?>
+                    <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'special_customer'])): ?>
+                    <!-- Row 3: Dosham -->
                     <div class="col-md-4">
                         <label class="form-label">தோசம் (Dosham)</label>
                         <div class="district-dropdown dropdown">
@@ -573,8 +589,12 @@ $districtsMap = [
                         </div>
                     </div>
 
+                    <?php endif; ?>
+
+                    <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
                     <div class="col-md-4">
                         <label class="form-label">நட்சத்திரம் (Nakshatram)</label>
+
                         <div class="district-dropdown dropdown">
                             <button class="btn btn-light border dropdown-toggle" type="button" id="nakshatramDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                                 நட்சத்திரம் தேர்வு
@@ -628,11 +648,22 @@ $districtsMap = [
                         </div>
                     </div>
 
+<?php if (getUserRole() !== 'manager'): ?>
                     <div class="col-md-4">
                         <label for="phone" class="form-label">போன்</label>
                         <input type="text" class="form-control" id="phone" name="phone" 
                                value="<?php echo htmlspecialchars($phone); ?>" 
                                placeholder="Search mobile...">
+                    </div>
+                    <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php if (isCustomerRole()): ?>
+                    <div class="col-md-4">
+                        <label class="form-label">ID</label>
+                        <input type="number" class="form-control" id="id_search" name="id_search"
+                               value="<?php echo htmlspecialchars($id_search); ?>"
+                               placeholder="ID">
                     </div>
                     <?php endif; ?>
 
@@ -672,7 +703,7 @@ $districtsMap = [
                 <thead>
                     <tr>
                         <th style="width:40px;">
-                            <?php if (getUserRole() !== 'customer'): ?>
+                            <?php if (!isCustomerRole()): ?>
                                 <input type="checkbox" id="selectAllProfiles" title="Select all">
                             <?php endif; ?>
                         </th>
@@ -701,7 +732,7 @@ $districtsMap = [
                     <?php foreach($profiles as $profile): ?>
                     <tr>
                         <td>
-                            <?php if (getUserRole() !== 'customer'): ?>
+                            <?php if (!isCustomerRole()): ?>
                                 <input type="checkbox" class="profileCheckbox" name="ids[]" value="<?php echo $profile['id']; ?>">
                             <?php endif; ?>
                         </td>
@@ -725,20 +756,20 @@ $districtsMap = [
                         <td><?php echo htmlspecialchars($profile['city']); ?></td>
                         <td>
                             <a href="view.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-info">பார்</a>
-                            <?php if (getUserRole() === 'super_admin' || getUserRole() === 'manager'): ?>
+                            <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
                                 <a href="edit.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-warning">திருத்து</a>
                             <?php endif; ?>
-                            <?php if (getUserRole() === 'super_admin' || getUserRole() === 'customer'): ?>
+                            <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'customer', 'special_customer'])): ?>
                                 <a href="print.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">பிரிண்ட்</a>
                             <?php endif; ?>
-                            <?php if (getUserRole() === 'super_admin'): ?>
+                            <?php if (in_array(getUserRole(), ['super_admin', 'admin'])): ?>
                                 <!-- Delete form: uses POST and a JS confirmation to avoid accidental deletes -->
                                 <form method="POST" action="delete.php" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this profile? This cannot be undone.');">
                                     <input type="hidden" name="id" value="<?php echo $profile['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-danger">அழி</button>
                                 </form>
                             <?php endif; ?>
-                            <?php if (getUserRole() === 'super_admin' || getUserRole() === 'manager' || getUserRole() === 'customer'): ?>
+                            <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer'])): ?>
                                 <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">No Phone PDF</a>
                             <?php endif; ?>
                         </td>
@@ -748,7 +779,7 @@ $districtsMap = [
                 </tbody>
             </table>
                 </form>
-                <?php if (getUserRole() !== 'customer'): ?>
+                <?php if (!isCustomerRole()): ?>
                     <div class="mb-3">
                         <button id="deleteSelectedBtn" class="btn btn-danger" disabled>Delete selected</button>
                     </div>

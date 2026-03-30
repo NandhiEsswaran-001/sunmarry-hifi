@@ -2,7 +2,7 @@
 require_once 'auth.php';
 requireLogin();
 
-// Ensure `dosham` and `education_details` columns exist in `profiles` table
+// Ensure `dosham`, `education_details`, and `notes` columns exist in `profiles` table
 try {
     $pdo = getDB();
     $colStmt = $pdo->query("SHOW COLUMNS FROM profiles");
@@ -14,12 +14,15 @@ try {
     if (!in_array('education_details', $colNames)) {
         $pdo->exec("ALTER TABLE profiles ADD COLUMN education_details VARCHAR(500) DEFAULT ''");
     }
+    if (!in_array('notes', $colNames)) {
+        $pdo->exec("ALTER TABLE profiles ADD COLUMN notes TEXT DEFAULT ''");
+    }
 } catch (PDOException $e) {
     // ignore schema change errors
 }
 
-// If the logged-in user is a 'customer' role, redirect them to profiles.php only.
-if (getUserRole() === 'customer') {
+// If the logged-in user is a customer role, redirect them to profiles.php only.
+if (isCustomerRole()) {
     header('Location: profiles.php');
     exit();
 }
@@ -60,11 +63,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone1 = trim($_POST['phone1'] ?? '');
     $phone2 = trim($_POST['phone2'] ?? '');
     $phone3 = trim($_POST['phone3'] ?? '');
+    $notes = trim($_POST['notes'] ?? '');
+
+    $errors = [];
+    if ($phone1 !== '' && $phone2 !== '' && $phone1 === $phone2) {
+        $errors[] = 'தொலைபேசி 2, தொலைபேசி 1 போல இருக்கக் கூடாது.';
+    }
+    // Prevent duplicate profiles (by primary phone or by name + birth date)
+    try {
+        $hasDeletedAt = false;
+        try {
+            $hasDeletedAt = (bool)$pdo->query("SHOW COLUMNS FROM profiles LIKE 'deleted_at'")->fetch();
+        } catch (PDOException $e) {
+            $hasDeletedAt = false;
+        }
+
+        $dupParts = [];
+        $dupParams = [];
+        if ($phone1 !== '') {
+            $dupParts[] = "(phone_primary = ? OR phone_secondary = ? OR phone_tertiary = ?)";
+            $dupParams[] = $phone1;
+            $dupParams[] = $phone1;
+            $dupParams[] = $phone1;
+        }
+        if ($name !== '' && !empty($birth_date)) {
+            $dupParts[] = "(name = ? AND birth_date = ?)";
+            $dupParams[] = $name;
+            $dupParams[] = $birth_date;
+        }
+
+        if (!empty($dupParts)) {
+            $dupSql = "SELECT id FROM profiles WHERE (" . implode(" OR ", $dupParts) . ")";
+            if ($hasDeletedAt) {
+                $dupSql .= " AND deleted_at IS NULL";
+            }
+            $dupStmt = $pdo->prepare($dupSql);
+            $dupStmt->execute($dupParams);
+            if ($dupStmt->fetch()) {
+                $errors[] = 'ஏற்கனவே இதே விவரத்துடன் சுயவிவரம் உள்ளது. தயவுசெய்து புதிய விவரங்களை உள்ளிடவும்.';
+            }
+        }
+    } catch (PDOException $e) {
+        // ignore duplicate check errors
+    }
 
     // Handle file uploads
     $profile_photo = $_FILES['profile_photo'] ?? null;
     $supporting_doc = $_FILES['supporting_doc'] ?? null;
 
+    if (!empty($errors)) {
+        $message = $errors[0];
+    } else {
     $uploadDir = __DIR__ . '/uploads/';
     if (!file_exists($uploadDir)) {
         mkdir($uploadDir, 0755, true);
@@ -90,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         $stmt = $pdo->prepare(
-            "INSERT INTO profiles (name, age, marriage_type, gender, district, city, birth_place, birth_date, birth_time, caste, kulam, nakshatram, rasi, education_type, education_details, dosham, brothers_total, brothers_married, sisters_total, sisters_married, profession, phone_primary, phone_secondary, phone_tertiary, profile_photo, file_upload)"
-                . " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO profiles (name, age, marriage_type, gender, district, city, birth_place, birth_date, birth_time, caste, kulam, nakshatram, rasi, education_type, education_details, dosham, brothers_total, brothers_married, sisters_total, sisters_married, profession, phone_primary, phone_secondary, phone_tertiary, notes, profile_photo, file_upload)"
+                . " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
 
         $stmt->execute([
@@ -119,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone1,
             $phone2,
             $phone3,
+            $notes,
             $profile_photo_path,
             $supporting_doc_path
         ]);
@@ -126,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = "சுயவிவரம் வெற்றிகரமாக உருவாக்கப்பட்டது!";
     } catch (PDOException $e) {
         $message = "Error creating profile: " . $e->getMessage();
+    }
     }
 }
 
@@ -495,6 +546,12 @@ $districtsMap = [
                     <input type="tel" class="form-control" id="phone3" name="phone3" placeholder="(optional)">
                 </div>
 
+                <!-- Notes -->
+                <div class="col-12 mb-3">
+                    <label for="notes" class="form-label">குறிப்பு விவரங்கள்</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="குறிப்பு விவரங்களை உள்ளிடவும்"></textarea>
+                </div>
+
                 <!-- 25. Profile photo -->
                 <div class="col-md-6 mb-3">
                     <label for="profile_photo" class="form-label">சுயவிவர புகைப்படம்</label>
@@ -529,13 +586,30 @@ $districtsMap = [
         document.addEventListener('DOMContentLoaded', function() {
             const birthDateInput = document.getElementById('birth_date');
             const ageInput = document.getElementById('age');
+            const phone1Input = document.getElementById('phone1');
+            const phone2Input = document.getElementById('phone2');
             function updateAge() {
                 const age = calculateAge(birthDateInput.value);
                 ageInput.value = age > 0 ? age : '';
             }
+            function validatePhones() {
+                if (!phone1Input || !phone2Input) return;
+                const p1 = phone1Input.value.trim();
+                const p2 = phone2Input.value.trim();
+                if (p1 && p2 && p1 === p2) {
+                    phone2Input.setCustomValidity('தொலைபேசி 2, தொலைபேசி 1 போல இருக்கக் கூடாது.');
+                } else {
+                    phone2Input.setCustomValidity('');
+                }
+            }
             if (birthDateInput) {
                 birthDateInput.addEventListener('input', updateAge);
                 updateAge();
+            }
+            if (phone1Input && phone2Input) {
+                phone1Input.addEventListener('input', validatePhones);
+                phone2Input.addEventListener('input', validatePhones);
+                validatePhones();
             }
         });
 

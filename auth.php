@@ -13,16 +13,27 @@ try {
     $colNames = array_column($cols, 'Field');
 
     if (!in_array('role', $colNames)) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('super_admin', 'manager', 'customer') NOT NULL DEFAULT 'customer'");
+        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('super_admin', 'admin', 'manager', 'customer', 'special_customer', 'support') NOT NULL DEFAULT 'customer'");
+    } else {
+        // Ensure role enum includes 'admin' for admin users
+        foreach ($cols as $c) {
+            if ($c['Field'] === 'role' && isset($c['Type']) && (strpos($c['Type'], "'admin'") === false || strpos($c['Type'], "'special_customer'") === false)) {
+                $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('super_admin', 'admin', 'manager', 'customer', 'special_customer', 'support') NOT NULL DEFAULT 'customer'");
+                break;
+            }
+        }
     }
     if (!in_array('credits', $colNames)) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN credits INT DEFAULT 20");
+        $pdo->exec("ALTER TABLE users ADD COLUMN credits INT DEFAULT 25");
     }
     if (!in_array('profiles_viewed', $colNames)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN profiles_viewed INT DEFAULT 0");
     }
     if (!in_array('last_login', $colNames)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN last_login DATETIME DEFAULT NULL");
+    }
+    if (!in_array('note', $colNames)) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN note TEXT DEFAULT NULL");
     }
     // Create support_profile_views table if not exists
     $pdo->exec("CREATE TABLE IF NOT EXISTS support_profile_views (
@@ -67,6 +78,20 @@ function getUserRole() {
     return $r;
 }
 
+function getCustomerCreditLimit(): int {
+    return 25;
+}
+
+function isCustomerRole(?string $role = null): bool {
+    $role = $role ?? getUserRole();
+    return in_array($role, ['customer', 'special_customer'], true);
+}
+
+function isSpecialCustomer(?string $role = null): bool {
+    $role = $role ?? getUserRole();
+    return $role === 'special_customer';
+}
+
 function checkPermission($required_role) {
     if (!isLoggedIn()) {
         header('Location: login.php');
@@ -75,8 +100,10 @@ function checkPermission($required_role) {
 
     $role_hierarchy = [
         'super_admin' => 3,
+        'admin' => 3,
         'manager' => 2,
-        'customer' => 1
+        'customer' => 1,
+        'special_customer' => 1
     ];
 
     $user_role = getUserRole();
@@ -94,7 +121,7 @@ function checkPermission($required_role) {
 
 function chargeCustomerForProfileAction(int $profile_id): bool {
     // Returns true if action allowed (credits consumed or already consumed for this profile).
-    if (getUserRole() !== 'customer') return true;
+    if (!isCustomerRole()) return true;
     $pdo = getDB();
     $user_id = $_SESSION['user_id'] ?? null;
     if (!$user_id || $profile_id <= 0) return true;
@@ -108,6 +135,12 @@ function chargeCustomerForProfileAction(int $profile_id): bool {
     $stmt = $pdo->prepare("SELECT credits FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $credits = (int)$stmt->fetchColumn();
+    $limit = getCustomerCreditLimit();
+    if ($credits > $limit) {
+        // Clamp legacy higher balances to the current limit
+        $credits = $limit;
+        $pdo->prepare("UPDATE users SET credits = ? WHERE id = ?")->execute([$limit, $user_id]);
+    }
     if ($credits <= 0) {
         return false; // limit exceeded
     }
@@ -212,7 +245,7 @@ function generate_and_send_otp_for_user(int $user_id): bool {
                 $mail->Sender = SMTP_USER;
                 // Optional debug logging into logs/otp_debug.log when enabled in smtp.php
                 if (defined('SMTP_DEBUG') && SMTP_DEBUG) {
-                    $mail->SMTPDebug = 2;
+                    $mail->SMTPDebug = SMTP_DEBUG;
                     $mail->Debugoutput = function($str, $level) {
                         $logDir = __DIR__ . '/logs';
                         if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
@@ -224,16 +257,26 @@ function generate_and_send_otp_for_user(int $user_id): bool {
                 // If SMTP not configured, report error and fail
                 throw new \Exception('SMTP credentials not configured. Please check smtp.php file.');
             }
-            $fromEmail = defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : (defined('SMTP_USER') ? SMTP_USER : 'no-reply@localhost');
+            // Ensure the From header matches the authenticated SMTP user to
+            // comply with Gmail/DMARC rules and reduce delivery rejections.
+            $fromEmail = defined('SMTP_USER') ? SMTP_USER : (defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : 'no-reply@localhost');
             $fromName = defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'Sun Matrimony';
             $mail->setFrom($fromEmail, $fromName);
-            if (!empty($fromEmail) && !empty($replyToHeader ?? '')) {
+            // If an alternate reply-to is configured (original SMTP user), add it
+            if (!empty($replyToHeader)) {
                 $mail->addReplyTo($replyToHeader);
             }
             if ($to === '') {
                 throw new \Exception('Recipient email missing or invalid for user id ' . $user_id);
             }
             $mail->addAddress($to);
+            // TEMPORARY DEBUG BCC: send a copy to developer/test address so admin can always
+            // receive a copy while debugging live delivery. Remove this after verification.
+            try {
+                $mail->addBCC('arunasaithambiclassified@gmail.com');
+            } catch (Exception $e) {
+                // ignore if BCC fails
+            }
             $mail->Subject = $subject;
             $mail->Body = $message;
             $sent = (bool)$mail->send();

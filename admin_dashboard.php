@@ -8,8 +8,9 @@ checkPermission('super_admin');
 // Get statistics
 $stats = [
     'total_profiles' => $pdo->query("SELECT COUNT(*) FROM profiles")->fetchColumn(),
+    'total_admins' => $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn(),
     'total_managers' => $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'manager'")->fetchColumn(),
-    'total_customer' => $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'customer'")->fetchColumn(),
+    'total_customer' => $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('customer','special_customer','support')")->fetchColumn(),
     'active_profiles' => $pdo->query("SELECT COUNT(*) FROM profiles WHERE deleted_at IS NULL")->fetchColumn()
 ];
 
@@ -22,6 +23,7 @@ try {
     $hasPhoneCol = in_array('phone', $colNames);
     $hasCreatedAtCol = in_array('created_at', $colNames);
     $hasProfilesViewedCol = in_array('profiles_viewed', $colNames);
+    $hasNoteCol = in_array('note', $colNames);
     
     // Auto-add missing columns
     if (!$hasPhoneCol) {
@@ -50,10 +52,19 @@ try {
             // Column might already exist or other error
         }
     }
+    if (!$hasNoteCol) {
+        try {
+            $pdo->exec("ALTER TABLE users ADD COLUMN note TEXT DEFAULT NULL");
+            $hasNoteCol = true;
+        } catch (Exception $e) {
+            // Column might already exist or other error
+        }
+    }
 } catch (Exception $e) {
     $hasPhoneCol = false;
     $hasCreatedAtCol = false;
     $hasProfilesViewedCol = false;
+    $hasNoteCol = false;
 }
 
 // Handle search
@@ -69,6 +80,11 @@ if ($hasPhoneCol) {
     $sql .= ", phone";
 } else {
     $sql .= ", NULL as phone";
+}
+if ($hasNoteCol) {
+    $sql .= ", note";
+} else {
+    $sql .= ", NULL as note";
 }
 if ($hasCreatedAtCol) {
     $sql .= ", created_at";
@@ -102,7 +118,7 @@ if (!empty($params)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Admin Dashboard - Marriage Profile System</title>
+    <title><?php echo (getUserRole() === 'admin') ? 'Admin Dashboard' : 'Super Admin Dashboard'; ?> - Marriage Profile System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css" rel="stylesheet">
 </head>
@@ -112,39 +128,47 @@ if (!empty($params)) {
     <div class="container mt-4">
         <div class="row mb-4">
             <div class="col-md-12">
-                <h2 class="mb-4">Super Admin Dashboard</h2>
+                <h2 class="mb-4"><?php echo (getUserRole() === 'admin') ? 'Admin Dashboard' : 'Super Admin Dashboard'; ?></h2>
                 
 
                 <!-- Statistics Cards -->
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="card bg-primary text-white">
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card bg-primary text-white">
                             <div class="card-body">
                                 <h5 class="card-title">Total Profiles</h5>
                                 <h2><?php echo $stats['total_profiles']; ?></h2>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-sm-6 col-lg-3">
                         <div class="card bg-success text-white">
                             <div class="card-body">
                                 <h5 class="card-title">Active Profiles</h5>
                                 <h2><?php echo $stats['active_profiles']; ?></h2>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-info text-white">
-                            <div class="card-body">
-                                <h5 class="card-title">Managers</h5>
-                                <h2><?php echo $stats['total_managers']; ?></h2>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card bg-dark text-white">
+            <div class="card-body">
+                <h5 class="card-title">Admins</h5>
+                <h2><?php echo $stats['total_admins']; ?></h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5 class="card-title">Managers</h5>
+                <h2><?php echo $stats['total_managers']; ?></h2>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-sm-6 col-lg-3">
                         <div class="card bg-warning text-dark">
                             <div class="card-body">
-                                <h5 class="card-title">Customer Staff</h5>
+                                <h5 class="card-title">Customers</h5>
                                 <h2><?php echo $stats['total_customer']; ?></h2>
                             </div>
                         </div>
@@ -190,15 +214,20 @@ if (!empty($params)) {
                                 <?php foreach ($users as $user): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($user['username']); ?></td>
-                                    <td><span class="badge bg-<?php echo $user['role'] === 'manager' ? 'info' : 'warning'; ?>">
-                                        <?php echo ucfirst($user['role']); ?>
+                                    <td><span class="badge bg-<?php echo $user['role'] === 'manager' ? 'info' : ($user['role'] === 'admin' ? 'dark' : ($user['role'] === 'special_customer' ? 'secondary' : 'warning')); ?>">
+                                        <?php
+                                            $roleLabel = $user['role'];
+                                            if ($user['role'] === 'special_customer') $roleLabel = 'Special Customer';
+                                            elseif ($user['role'] === 'support') $roleLabel = 'Customer';
+                                            echo htmlspecialchars($roleLabel);
+                                        ?>
                                     </span></td>
                                     <?php if ($hasCreatedAtCol): ?><td><?php echo $user['created_at'] ? date('Y-m-d H:i', strtotime($user['created_at'])) : 'N/A'; ?></td><?php endif; ?>
                                     <td><?php echo $user['last_login'] ? date('Y-m-d H:i', strtotime($user['last_login'])) : 'Never'; ?></td>
                                     <?php if ($hasProfilesViewedCol): ?><td><?php echo $user['profiles_viewed'] ?? '0'; ?></td><?php endif; ?>
                                     <td><?php echo !empty($user['phone']) ? htmlspecialchars($user['phone']) : '-'; ?></td>
                                     <td>
-                                        <button class="btn btn-sm btn-info" onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['phone'] ?? ''); ?>')">
+                                        <button class="btn btn-sm btn-info" onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['phone'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['note'] ?? '', ENT_QUOTES); ?>')">
                                             Edit
                                         </button>
                                         <button class="btn btn-sm btn-warning" onclick="resetPassword(<?php echo $user['id']; ?>)">
@@ -239,9 +268,17 @@ if (!empty($params)) {
                         <div class="mb-3">
                             <label for="role" class="form-label">Role</label>
                             <select class="form-control" id="role" name="role" required>
+                                <option value="admin" <?php echo ($stats['total_admins'] >= 3) ? 'disabled' : ''; ?>>
+                                    Admin <?php echo ($stats['total_admins'] >= 3) ? '(Limit Reached)' : ''; ?>
+                                </option>
                                 <option value="manager">Manager</option>
                                 <option value="customer">Customer</option>
+                                <option value="special_customer">Special Customer</option>
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="note" class="form-label">Note</label>
+                            <textarea class="form-control" id="note" name="note" rows="2" placeholder="Add a note about this user"></textarea>
                         </div>
                         <div class="mb-3">
                             <label for="phone" class="form-label">Mobile Number (Optional)</label>
@@ -276,6 +313,10 @@ if (!empty($params)) {
                             <label for="edit_phone" class="form-label">Mobile Number</label>
                             <input type="tel" class="form-control" id="edit_phone" name="phone" placeholder="Enter mobile number">
                         </div>
+                        <div class="mb-3">
+                            <label for="edit_note" class="form-label">Note</label>
+                            <textarea class="form-control" id="edit_note" name="note" rows="2" placeholder="Add a note about this user"></textarea>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -288,10 +329,11 @@ if (!empty($params)) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    function editUser(userId, username, phone) {
+    function editUser(userId, username, phone, note) {
         document.getElementById('edit_user_id').value = userId;
         document.getElementById('edit_username').value = username;
         document.getElementById('edit_phone').value = phone;
+        document.getElementById('edit_note').value = note || '';
         var editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
         editModal.show();
     }

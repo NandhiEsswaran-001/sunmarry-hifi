@@ -6,13 +6,14 @@ requireLogin();
 if (getUserRole() === null || (!in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer']))) {
     header('Location: access_denied.php');
     exit();
-}$id = $_GET['id'] ?? null;
+}
+$id = $_GET['id'] ?? null;
 if (!$id) {
     header('Location: profiles.php');
     exit();
 }
 
-// Charge a credit for No Phone PDF if applicable
+// Charge a credit for printing if applicable
 $allowed = incrementProfileViews();
 if ($allowed === false) {
     echo "<!doctype html><html><head><meta charset=\"utf-8\"><title>Limit Exceeded</title>\n<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\"></head><body class=\"bg-light\">";
@@ -21,6 +22,7 @@ if ($allowed === false) {
     exit();
 }
 
+$pdo = getDB();
 $stmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ?");
 $stmt->execute([$id]);
 $profile = $stmt->fetch();
@@ -30,7 +32,7 @@ if (!$profile) {
     exit();
 }
 
-// Tamil District Names (shortened here — retain your full map if needed)
+// Tamil District Names
 $districtsMap = [
     'Ariyalur' => 'அரியலூர்',
     'Chennai' => 'சென்னை',
@@ -281,6 +283,19 @@ body { font-weight: 600; }
     .print-layout { box-shadow: none; padding: 6mm; }
     .header { border-bottom-width: 1px; }
 }
+
+
+
+/* Arunz code */
+
+.phone-text {
+    font-size: 19px;
+    
+}
+
+
+
+
 </style>
 </head>
 <body>
@@ -292,8 +307,9 @@ body { font-weight: 600; }
 
 <div class="print-layout">
     <div class="header">
+        
         <p>சன் மேட்ரிமோனி | www.sunmatri.in | +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651</p>
-
+        
         <p>Profile ID: <strong><?php echo htmlspecialchars($profile['id']); ?></strong></p>
     </div>
 
@@ -340,8 +356,6 @@ body { font-weight: 600; }
                 ?></td></tr>
                 <tr><th>பிறந்த நேரம்:</th><td><?php echo htmlspecialchars($profile['birth_time']); ?></td></tr>
 
-
-
                 <tr><th>பிறந்த ஊர்:</th><td><?php echo htmlspecialchars($profile['birth_place'] ?? ''); ?></td></tr>
 
                 <tr><th>குறிப்பு விவரங்கள்:</th><td><?php echo nl2br(htmlspecialchars($profile["notes"] ?? "")); ?></td></tr>
@@ -375,9 +389,6 @@ body { font-weight: 600; }
 ?>
                 </td></tr>
 
-
-
-
                 <tr><th>வசிக்கும் ஊர்:</th><td><?php echo htmlspecialchars($profile['city']); ?></td></tr>
                 
                 
@@ -386,6 +397,9 @@ body { font-weight: 600; }
                 <tr><th>சகோதரர்கள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['brothers_married']); ?></td></tr>
                 <tr><th>சகோதரிகள் (மொத்தம்):</th><td><?php echo htmlspecialchars($profile['sisters_total']); ?></td></tr>
                 <tr><th>சகோதரிகள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['sisters_married']); ?></td></tr>
+<?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_primary'] ?? ''); ?>
+<?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_secondary'] ?? ''); ?>
+                <tr><th>குறிப்பு :</th><td><?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?></td></tr>
             </table>
             </table>
         </div>
@@ -405,5 +419,6 @@ body { font-weight: 600; }
 </div>
 
 </body>
-</html>
+</html>  
+
 

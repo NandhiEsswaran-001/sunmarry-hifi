@@ -4,8 +4,8 @@ require_once 'db.php';
 try {
     // Add role column and credits to users table
     $pdo->exec("ALTER TABLE users 
-                ADD COLUMN role ENUM('super_admin', 'manager', 'customer') NOT NULL DEFAULT 'customer',
-                ADD COLUMN credits INT DEFAULT 10,
+                ADD COLUMN role ENUM('super_admin', 'manager', 'customer', 'special_customer') NOT NULL DEFAULT 'customer',
+                ADD COLUMN credits INT DEFAULT 25,
                 ADD COLUMN last_login DATETIME DEFAULT NULL,
                 ADD COLUMN profiles_viewed INT DEFAULT 0");
 

@@ -1,0 +1,11 @@
+<?php
+// smtp.php.example - copy to smtp.php and fill your SMTP credentials
+
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_USER', 'you@example.com');
+define('SMTP_PASS', 'your_smtp_password');
+define('SMTP_PORT', 587);
+define('SMTP_SECURE', 'tls');
+
+define('SMTP_FROM_EMAIL', SMTP_USER);
+?>

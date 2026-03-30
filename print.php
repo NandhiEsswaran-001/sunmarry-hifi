@@ -3,10 +3,11 @@ require_once 'auth.php';
 requireLogin();
 
 // Allow super_admin, manager, and support roles
-if (getUserRole() === null || (getUserRole() !== 'super_admin' && getUserRole() !== 'manager' && getUserRole() !== 'customer')) {
+if (getUserRole() === null || (!in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer']))) {
     header('Location: access_denied.php');
     exit();
-}$id = $_GET['id'] ?? null;
+}
+$id = $_GET['id'] ?? null;
 if (!$id) {
     header('Location: profiles.php');
     exit();
@@ -21,6 +22,7 @@ if ($allowed === false) {
     exit();
 }
 
+$pdo = getDB();
 $stmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ?");
 $stmt->execute([$id]);
 $profile = $stmt->fetch();
@@ -30,7 +32,7 @@ if (!$profile) {
     exit();
 }
 
-// Tamil District Names (shortened here — retain your full map if needed)
+// Tamil District Names
 $districtsMap = [
     'Ariyalur' => 'அரியலூர்',
     'Chennai' => 'சென்னை',
@@ -78,6 +80,7 @@ $districtsMap = [
                 margin: 0;
                 padding: 0;
                 background: #fff;
+                font-size: 16px;
             }
             .container, .profile-container, .left-side, .right-side, .supporting-doc {
                 box-sizing: border-box;
@@ -106,8 +109,8 @@ $districtsMap = [
                 page-break-inside: avoid;
             }
             .supporting-doc img {
-                max-width: 700px;
-                max-height: 900px;
+                max-width: 100%;
+                max-height: 140mm;
                 width: 100%;
                 height: auto;
                
@@ -141,6 +144,7 @@ html, body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     font-family: 'Latha', sans-serif;
+    font-size: 16px;
 }
 
 /* Don't force all elements to be bold (that increases layout size). Keep headings bold only. */
@@ -150,22 +154,21 @@ body { font-weight: 600; }
 
 .print-layout {
     width: 210mm;
-    height: 297mm; /* force exact A4 height */
-    max-height: 297mm;
+    min-height: 297mm;
     box-sizing: border-box;
     margin: 0 auto;
     padding: 8mm;
     background: #fff;
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* ensure content doesn't flow to a second page */
+    overflow: visible;
     page-break-after: avoid;
     page-break-inside: avoid;
 }
 
 /* Header */
 .header { text-align: center; margin-bottom: 6px; border-bottom: 2px solid #333; padding-bottom: 6px; }
-.header p { margin: 0; font-size: 12px; }
+.header p { margin: 0; font-size: 16px; }
 
 /* Main content area */
 .profile-container {
@@ -206,7 +209,7 @@ body { font-weight: 600; }
 /* Right side: details */
 .right-side {
     width: 64%;
-    font-size: 11px; /* slightly smaller text to help fit everything */
+    font-size: 15px;
     padding-top: 0;
     padding-bottom: 0;
 }
@@ -243,11 +246,13 @@ body { font-weight: 600; }
     border-top: 1px dashed #ccc;
     page-break-inside: avoid;
     page-break-after: auto;
+    break-inside: avoid;
+    break-before: page;
 }
 
 /* big heading */
 .supporting-doc h3 {
-    font-size: 18px;
+    font-size: 22px;
     margin: 6px 0 10px;
 }
 
@@ -257,7 +262,7 @@ body { font-weight: 600; }
     margin: 0 auto;
     width: 100%;
     max-width: 100%;
-    max-height: 70mm; /* lower to keep everything on one page */
+    max-height: 190mm;
     height: auto;
     object-fit: contain;
     
@@ -280,6 +285,7 @@ body { font-weight: 600; }
     .no-print { display: none; }
     .print-layout { box-shadow: none; padding: 6mm; }
     .header { border-bottom-width: 1px; }
+    .supporting-doc { break-before: page; page-break-before: always; }
 }
 
 
@@ -354,10 +360,22 @@ body { font-weight: 600; }
                 ?></td></tr>
                 <tr><th>பிறந்த நேரம்:</th><td><?php echo htmlspecialchars($profile['birth_time']); ?></td></tr>
 
-
-
                 <tr><th>பிறந்த ஊர்:</th><td><?php echo htmlspecialchars($profile['birth_place'] ?? ''); ?></td></tr>
-                
+
+                <tr><th>குறிப்பு விவரங்கள்:</th><td><?php echo nl2br(htmlspecialchars($profile["notes"] ?? "")); ?></td></tr>
+
+                <tr><th>படிப்பு பிரிவு:</th><td><?php
+                    $educationType = trim($profile['education_type'] ?? '');
+                    $educationDetails = trim($profile['education_details'] ?? '');
+                    if ($educationType === '' && $educationDetails === '') {
+                        echo '';
+                    } elseif ($educationType !== '' && $educationDetails !== '') {
+                        echo htmlspecialchars($educationType . ' (' . $educationDetails . ')');
+                    } else {
+                        echo htmlspecialchars($educationType !== '' ? $educationType : $educationDetails);
+                    }
+                ?></td></tr>
+
                 <tr><th>ராசி:</th><td><?php echo htmlspecialchars($profile['rasi']); ?></td></tr>
                 <tr><th>நட்சத்திரம்:</th><td><?php echo htmlspecialchars($profile['nakshatram']); ?></td></tr>
                 
@@ -387,9 +405,6 @@ body { font-weight: 600; }
 ?>
                 </td></tr>
 
-
-
-
                 <tr><th>வசிக்கும் ஊர்:</th><td><?php echo htmlspecialchars($profile['city']); ?></td></tr>
                 
                 
@@ -398,8 +413,8 @@ body { font-weight: 600; }
                 <tr><th>சகோதரர்கள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['brothers_married']); ?></td></tr>
                 <tr><th>சகோதரிகள் (மொத்தம்):</th><td><?php echo htmlspecialchars($profile['sisters_total']); ?></td></tr>
                 <tr><th>சகோதரிகள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['sisters_married']); ?></td></tr>
-                <tr><th>தொலைபேசி 1 :</th><td class="phone-text"><?php echo htmlspecialchars($profile['phone_primary'] ?? ''); ?></td></tr>
-                <tr><th>தொலைபேசி 2 :</th><td class="phone-text"><?php echo htmlspecialchars($profile['phone_secondary'] ?? ''); ?></td></tr>
+                <tr><th>தொலைபேசி 1:</th><td><?php echo (getUserRole()==='manager') ? '' : htmlspecialchars($profile['phone_primary']); ?></td></tr>
+                <tr><th>தொலைபேசி 2:</th><td><?php echo (getUserRole()==='manager') ? '' : htmlspecialchars($profile['phone_secondary']); ?></td></tr>
                 <tr><th>குறிப்பு :</th><td><?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?></td></tr>
             </table>
             </table>
@@ -420,4 +435,6 @@ body { font-weight: 600; }
 </div>
 
 </body>
-</html>
+</html>  
+
+

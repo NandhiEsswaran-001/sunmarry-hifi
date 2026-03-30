@@ -3,7 +3,7 @@ require_once 'auth.php';
 requireLogin();
 
 // Only allow super_admin and manager roles
-if (getUserRole() === 'customer') {
+if (isCustomerRole()) {
     header('Location: access_denied.php');
     exit();
 }

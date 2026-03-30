@@ -9,7 +9,14 @@ try {
     $colNames = array_column($cols, 'Field');
 
     if (!in_array('role', $colNames)) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('super_admin', 'manager', 'customer') NOT NULL DEFAULT 'customer'");
+        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('super_admin', 'admin', 'manager', 'customer', 'special_customer', 'support') NOT NULL DEFAULT 'customer'");
+    } else {
+        foreach ($cols as $c) {
+            if ($c['Field'] === 'role' && isset($c['Type']) && (strpos($c['Type'], "'admin'") === false || strpos($c['Type'], "'special_customer'") === false)) {
+                $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('super_admin', 'admin', 'manager', 'customer', 'special_customer', 'support') NOT NULL DEFAULT 'customer'");
+                break;
+            }
+        }
     }
     if (!in_array('profiles_viewed', $colNames)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN profiles_viewed INT DEFAULT 0");
@@ -66,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dbRole = $user['role'] ?? '';
                 $appRole = ($dbRole === 'support') ? 'customer' : $dbRole;
 
-                if ($appRole === 'super_admin') {
+if (false) { // disabled OTP for all
                     // Store pending info and generate/send OTP
                     $_SESSION['pending_otp_user_id'] = $user['id'];
                     $_SESSION['pending_otp_username'] = $user['username'];
@@ -95,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Redirect based on role
                 $redirectTo = 'home.php';
                 $role = $_SESSION['role'] ?? $dbRole ?? '';
-                if ($role === 'customer') {
+                if (in_array($role, ['customer', 'special_customer'], true)) {
                     $redirectTo = 'profiles.php';
                 }
                 header("Location: " . $redirectTo);
@@ -118,13 +125,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Marriage Profile System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.16);
+            --glass-border: rgba(255, 255, 255, 0.35);
+            --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        body.login-hero {
+            min-height: 100vh;
+            background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.35)), url('assets/hero.png') center/cover no-repeat fixed;
+        }
+
+        .marquee-bar {
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            padding: 8px 0;
+            overflow: hidden;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+        }
+        .marquee {
+            display: inline-block;
+            white-space: nowrap;
+            animation: marquee 18s linear infinite;
+            padding-left: 100%;
+        }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        .login-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .login-card .card-header {
+            background: rgba(13, 110, 253, 0.75);
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        .login-card .form-control {
+            background: rgba(255,255,255,0.85);
+            border: 1px solid rgba(255,255,255,0.6);
+        }
+        .login-card .form-control:focus {
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+            border-color: rgba(13, 110, 253, 0.65);
+        }
+    </style>
 </head>
-<body class="bg-light">
+<body class="login-hero">
     <?php include 'header.php'; ?>
+    <div class="marquee-bar">
+        <div class="marquee">சன் மெட்ரிமோனி | அன்பும் நம்பிக்கையும் இணையும் இடம் | புதிய சுயவிவரம் உருவாக்கி உங்கள் வாழ்க்கை துணையைத் தேடுங்கள்</div>
+    </div>
     <div class="container">
         <div class="row justify-content-center mt-5">
             <div class="col-md-5">
-                <div class="card shadow">
+                <div class="card login-card">
                     <div class="card-header text-center bg-primary text-white">
                         <h4>Sun Matrimony Login</h4>
                         <h4>திருமண பதிவு உள்நுழைவு</h4>

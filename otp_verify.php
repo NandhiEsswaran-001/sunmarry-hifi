@@ -38,7 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 getDB()->prepare('UPDATE users SET last_login = NOW() WHERE id = ?')->execute([$user['id']]);
                 // Clear pending vars
                 unset($_SESSION['pending_otp_user_id'], $_SESSION['pending_otp_username']);
-                header('Location: home.php');
+                $redirectTo = isCustomerRole() ? 'profiles.php' : 'home.php';
+                header('Location: ' . $redirectTo);
                 exit();
             } else {
                 $error = 'User not found.';

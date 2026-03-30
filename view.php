@@ -164,12 +164,10 @@ $districtsMap = [
                                         <th>படிப்பு பிரிவு:</th>
                                         <td><?php echo htmlspecialchars($profile['education_details'] ?? ''); ?></td>
                                     </tr>
-                                    <?php if (in_array(getUserRole(), ['super_admin', 'manager'])): ?>
                                     <tr>
-                                        <th>குறிப்பு / Notes:</th>
+                                        <th>குறிப்பு விவரங்கள்:</th>
                                         <td><?php echo nl2br(htmlspecialchars($profile['notes'] ?? '')); ?></td>
                                     </tr>
-                                    <?php endif; ?>
                                     <tr>
                                         <th>தொழில்:</th>
                                         <td><?php echo htmlspecialchars($profile['profession'] ?? ''); ?></td>
@@ -203,14 +201,9 @@ $districtsMap = [
                                         <th>தொலைபேசி 1:</th>
                                         <td><?php
                                             $phoneVal = $profile['phone_primary'] ?? '';
-                                            if (!empty($phoneVal)) {
+if (!empty($phoneVal)) {
                                                 if (getUserRole() === 'manager') {
-                                                    $len = strlen($phoneVal);
-                                                    if ($len > 5) {
-                                                        echo str_repeat('#', $len - 5) . substr($phoneVal, -5);
-                                                    } else {
-                                                        echo $phoneVal;
-                                                    }
+                                                    echo '';
                                                 } else {
                                                     echo htmlspecialchars($phoneVal);
                                                 }
@@ -275,11 +268,11 @@ $districtsMap = [
                         
                         <div class="mt-3">
                             <a href="profiles.php" class="btn btn-secondary">Back to Profiles</a>
-                            <?php if (getUserRole() !== 'customer'): ?>
+                            <?php if (!isCustomerRole()): ?>
                             <a href="edit.php?id=<?php echo $profile['id']; ?>" class="btn btn-warning">Edit Profile</a>
                             <?php endif; ?>
                             <a href="print.php?id=<?php echo $profile['id']; ?>" class="btn btn-info">Print Profile</a>
-                            <?php if (getUserRole() === 'customer'): ?>
+                            <?php if (isCustomerRole()): ?>
                             <div class="alert alert-info mt-3">
                                 <?php
                                 require_once 'db.php';
@@ -287,8 +280,10 @@ $districtsMap = [
                                 $stmt = $pdo->prepare("SELECT credits FROM users WHERE id = ?");
                                 $stmt->execute([$user_id]);
                                 $credits = $stmt->fetchColumn();
-                                $credits = $credits === null ? 20 : (int)$credits;
-                                echo "Profiles remaining: $credits/20";
+                                $limit = getCustomerCreditLimit();
+                                $credits = $credits === null ? $limit : (int)$credits;
+                                $credits = min($credits, $limit);
+                                echo "Profiles remaining: $credits/$limit";
                                 ?>
                             </div>
                             <?php endif; ?>
@@ -302,3 +297,4 @@ $districtsMap = [
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+

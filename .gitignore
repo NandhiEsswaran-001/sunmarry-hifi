@@ -1,0 +1,7 @@
+/uploads/
+/logs/
+/*.sql
+/db.php
+/smtp.php
+/.env
+/.env.*
