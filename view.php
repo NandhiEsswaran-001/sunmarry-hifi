@@ -233,23 +233,7 @@ if (!empty($phoneVal)) {
                                         <td><?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?></td>
                                     </tr>
                                    
-                                    <tr>
                                         
-                                        <th>சகோதரர்கள் (மொத்தம்):</th>
-                                        <td><?php echo htmlspecialchars($profile['brothers_total'] ?? '0'); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th>சகோதரர்கள் (திருமணமான):</th>
-                                        <td><?php echo htmlspecialchars($profile['brothers_married'] ?? '0'); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th>சகோதரிகள் (மொத்தம்):</th>
-                                        <td><?php echo htmlspecialchars($profile['sisters_total'] ?? '0'); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th>சகோதரிகள் (திருமணமான):</th>
-                                        <td><?php echo htmlspecialchars($profile['sisters_married'] ?? '0'); ?></td>
-                                    </tr>
                                     <?php if ($profile['file_upload']): ?>
                                     <tr>
                                         <th>ஜாதகம்:</th>
