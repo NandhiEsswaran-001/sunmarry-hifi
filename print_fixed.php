@@ -135,7 +135,7 @@ $districtsMap = [
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
 /* A4 single page */
-@page { size: A4 portrait; margin: 8mm; }
+@page { size: A4 portrait; margin: 5mm; }
 
 html, body {
     height: 100%;
@@ -280,8 +280,16 @@ body { font-weight: 600; }
 /* Print adjustments */
 @media print {
     .no-print { display: none; }
-    .print-layout { box-shadow: none; padding: 6mm; }
-    .header { border-bottom-width: 1px; }
+    html, body { font-size: 14px; }
+    body { zoom: 0.9; }
+    .print-layout { box-shadow: none; padding: 5mm; }
+    .header { border-bottom-width: 1px; margin-bottom: 4px; padding-bottom: 4px; }
+    .profile-container { gap: 8px; margin-top: 4px; }
+    .right-side { font-size: 12px; }
+    .right-side th, .right-side td { padding: 3px 4px; }
+    .left-side img { max-height: 80mm; }
+    .supporting-doc { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #bbb; }
+    .supporting-doc img { max-height: 55mm; }
 }
 
 
