@@ -17,14 +17,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'New passwords do not match';
     } else {
         // Verify current password
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role = 'super_admin'");
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role IN ('super_admin', 'admin')");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch();
 
-        if ($user && $user['password'] === md5($current_password)) {
+        $storedHash = $user['password'] ?? '';
+        $passwordOk = $user && password_verify($current_password, $storedHash);
+        if (!$passwordOk && $storedHash !== '' && $storedHash === md5($current_password)) {
+            $passwordOk = true;
+        }
+
+        if ($passwordOk) {
             // Update password
             $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-            $stmt->execute([md5($new_password), $_SESSION['user_id']]);
+            $stmt->execute([password_hash($new_password, PASSWORD_DEFAULT), $_SESSION['user_id']]);
             $message = 'Password updated successfully';
         } else {
             $error = 'Current password is incorrect';

@@ -64,7 +64,13 @@ $districtsMap = [
     'Tiruvarur' => 'திருவாரூர்',
     'Vellore' => 'வேலூர்',
     'Viluppuram' => 'விழுப்புரம்',
-    'Virudhunagar' => 'விருதுநகர்'
+    'Virudhunagar' => 'விருதுநகர்',
+    'Chengalpattu' => 'செங்கல்பட்டு',
+    'Mayiladuthurai' => 'மயிலாடுதுறை',
+    'Ranipet' => 'ராணிப்பேட்டை',
+    'Tenkasi' => 'தென்கசி',
+    'Tirupathur' => 'திருப்பதூர்',
+    'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
 <!DOCTYPE html>
@@ -133,7 +139,7 @@ $districtsMap = [
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
 /* A4 single page */
-@page { size: A4 portrait; margin: 5mm; }
+@page { size: A4 portrait; margin: 3mm; }
 
 html, body {
     height: 100%;
@@ -141,6 +147,7 @@ html, body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     font-family: 'Latha', sans-serif;
+    font-size: 18px;
 }
 
 /* Don't force all elements to be bold (that increases layout size). Keep headings bold only. */
@@ -150,22 +157,21 @@ body { font-weight: 600; }
 
 .print-layout {
     width: 210mm;
-    height: 297mm; /* force exact A4 height */
-    max-height: 297mm;
+    min-height: 290mm;
     box-sizing: border-box;
     margin: 0 auto;
     padding: 8mm;
     background: #fff;
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* ensure content doesn't flow to a second page */
+    overflow: visible;
     page-break-after: avoid;
     page-break-inside: avoid;
 }
 
 /* Header */
 .header { text-align: center; margin-bottom: 6px; border-bottom: 2px solid #333; padding-bottom: 6px; }
-.header p { margin: 0; font-size: 12px; }
+.header p { margin: 0; font-size: 18px; }
 
 /* Main content area */
 .profile-container {
@@ -206,7 +212,7 @@ body { font-weight: 600; }
 /* Right side: details */
 .right-side {
     width: 64%;
-    font-size: 11px; /* slightly smaller text to help fit everything */
+    font-size: 17px;
     padding-top: 0;
     padding-bottom: 0;
 }
@@ -217,21 +223,29 @@ body { font-weight: 600; }
     border-spacing: 0 6px;
 }
 
+.right-side td.phone-cell {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
 .right-side th {
     text-align: left;
     width: 42%;
-    padding: 4px 6px;
+    padding: 5px 7px;
     background-color: #f8f9fa;
     border-radius: 4px 0 0 4px;
     vertical-align: top;
+    font-size: 17px;
 }
 
 .right-side td {
-    padding: 4px 6px;
+    padding: 5px 7px;
     background-color: #fff;
     border-radius: 0 4px 4px 0;
     border-left: 2px solid #dee2e6;
     vertical-align: top;
+    font-size: 17px;
 }
 
 /* Supporting Document large at bottom full width */
@@ -247,7 +261,7 @@ body { font-weight: 600; }
 
 /* big heading */
 .supporting-doc h3 {
-    font-size: 18px;
+    font-size: 22px;
     margin: 6px 0 10px;
 }
 
@@ -257,7 +271,7 @@ body { font-weight: 600; }
     margin: 0 auto;
     width: 100%;
     max-width: 100%;
-    max-height: 70mm; /* lower to keep everything on one page */
+    max-height: 260mm;
     height: auto;
     object-fit: contain;
     
@@ -278,16 +292,58 @@ body { font-weight: 600; }
 /* Print adjustments */
 @media print {
     .no-print { display: none; }
-    html, body { font-size: 14px; }
-    body { zoom: 0.9; }
-    .print-layout { box-shadow: none; padding: 5mm; }
-    .header { border-bottom-width: 1px; margin-bottom: 4px; padding-bottom: 4px; }
-    .profile-container { gap: 8px; margin-top: 4px; }
-    .right-side { font-size: 12px; }
-    .right-side th, .right-side td { padding: 3px 4px; }
-    .left-side img { max-height: 80mm; }
-    .supporting-doc { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #bbb; }
-    .supporting-doc img { max-height: 55mm; }
+    html, body {
+        width: 210mm;
+        height: 297mm;
+        font-size: 17px;
+        margin: 0;
+        padding: 0;
+    }
+    body { zoom: 0.98; }
+    .print-layout {
+        width: 204mm;
+        min-height: auto;
+        box-shadow: none;
+        padding: 2.5mm 3.5mm;
+        overflow: hidden;
+    }
+    .header {
+        border-bottom-width: 1px;
+        margin-bottom: 3px;
+        padding-bottom: 3px;
+    }
+    .header p { font-size: 19px; }
+    .profile-container { gap: 5px; margin-top: 2px; }
+    .left-side { width: 31%; gap: 5px; }
+    .right-side {
+        width: 69%;
+        font-size: 17px;
+    }
+    .right-side table { border-spacing: 0 2px; }
+    .right-side th, .right-side td {
+        padding: 3px 4px;
+        font-size: 17px;
+        line-height: 1.1;
+    }
+    .right-side td.phone-cell { font-size: 17px; }
+    .left-side img { max-height: 48mm; }
+    .supporting-doc {
+        margin-top: 4px;
+        padding-top: 3px;
+        border-top: 1px dashed #bbb;
+        break-before: auto;
+        page-break-before: auto;
+    }
+    .supporting-doc h3 { margin: 0 0 2px; font-size: 18px; }
+    .supporting-doc img {
+        max-height: 105mm;
+        width: 100%;
+        max-width: 100%;
+    }
+    .footer {
+        margin-top: 3px;
+        font-size: 11px;
+    }
 }
 </style>
 </head>
@@ -295,13 +351,10 @@ body { font-weight: 600; }
 
 <div class="no-print text-center mt-3" style="margin:8px;">
     <button onclick="window.print()" class="btn btn-primary">🖨️ Print</button>
-    <a href="profiles.php" class="btn btn-secondary">⬅️ Back</a>
 </div>
 
 <div class="print-layout">
     <div class="header">
-        <p>சன் மேட்ரிமோனி | www.sunmatri.in | +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651</p>
-
         <p>Profile ID: <strong><?php echo htmlspecialchars($profile['id']); ?></strong></p>
     </div>
 
@@ -351,8 +404,19 @@ body { font-weight: 600; }
 
 
                 <tr><th>பிறந்த ஊர்:</th><td><?php echo htmlspecialchars($profile['birth_place'] ?? ''); ?></td></tr>
+                <tr><th>படிப்பு பிரிவு:</th><td><?php
+                    $educationType = trim($profile['education_type'] ?? '');
+                    $educationDetails = trim($profile['education_details'] ?? '');
+                    if ($educationType === '' && $educationDetails === '') {
+                        echo '-';
+                    } elseif ($educationType !== '' && $educationDetails !== '') {
+                        echo htmlspecialchars($educationType . ' (' . $educationDetails . ')');
+                    } else {
+                        echo htmlspecialchars($educationType !== '' ? $educationType : $educationDetails);
+                    }
+                ?></td></tr>
 
-                <tr><th>குறிப்பு விவரங்கள்:</th><td><?php echo nl2br(htmlspecialchars($profile["notes"] ?? "")); ?></td></tr>
+                <?php /* Hidden: <tr><th>குறிப்பு விவரங்கள்:</th><td><?php echo nl2br(htmlspecialchars($profile["notes"] ?? "")); ?></td></tr> */ ?>
                 
                 <tr><th>ராசி:</th><td><?php echo htmlspecialchars($profile['rasi']); ?></td></tr>
                 <tr><th>நட்சத்திரம்:</th><td><?php echo htmlspecialchars($profile['nakshatram']); ?></td></tr>
@@ -367,7 +431,6 @@ body { font-weight: 600; }
                     echo htmlspecialchars($casteDisplay);
                 ?></td></tr>
                 <tr><th>குலம் (கோத்திரம்):</th><td><?php echo htmlspecialchars($profile['kulam']); ?></td></tr>
-
                 <tr><th>தொழில்:</th><td><?php echo htmlspecialchars($profile['profession']); ?></td></tr>
                 <tr><th>மாவட்டம்:</th><td>
 <?php
@@ -390,10 +453,8 @@ body { font-weight: 600; }
                 
                 
                 
-                <tr><th>சகோதரர்கள் (மொத்தம்):</th><td><?php echo htmlspecialchars($profile['brothers_total']); ?></td></tr>
-                <tr><th>சகோதரர்கள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['brothers_married']); ?></td></tr>
-                <tr><th>சகோதரிகள் (மொத்தம்):</th><td><?php echo htmlspecialchars($profile['sisters_total']); ?></td></tr>
-                <tr><th>சகோதரிகள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['sisters_married']); ?></td></tr>
+                <tr><th>சகோதரர்கள்:</th><td><?php echo htmlspecialchars($profile['brothers_total']); ?></td></tr>
+                <tr><th>சகோதரிகள்:</th><td><?php echo htmlspecialchars($profile['sisters_total']); ?></td></tr>
             </table>
             </table>
         </div>

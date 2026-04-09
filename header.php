@@ -6,10 +6,15 @@ $isLoginPage = basename($_SERVER['PHP_SELF'] ?? '') === 'login.php';
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary no-print">
     <div class="container">
         <?php if ($isLoginPage): ?>
-            <div class="w-100 d-flex justify-content-center">
+            <div class="w-100 d-flex align-items-center">
                 <a class="navbar-brand d-flex align-items-center" href="login.php">
-                    <img src="SunLogo.png" alt="Company Logo" class="company-logo">
+                    <img src="assets/SunLogoHeart.png" alt="Company Logo" class="company-logo" style="max-height: 60px;">
                 </a>
+                <div class="flex-grow-1 text-center text-white">
+                    <h2 class="mb-0 fw-bold">சன் மெட்ரிமோனி</h2>
+                    <small>திருமணம் மற்றும் திருமணத்தைக் கொண்டு</small>
+                </div>
+                <div style="width: 80px;"></div>
             </div>
         <?php else: ?>
             <a class="navbar-brand d-flex align-items-center" href="home.php">

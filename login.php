@@ -174,13 +174,13 @@ if (false) { // disabled OTP for all
             box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
             border-color: rgba(13, 110, 253, 0.65);
         }
-    </style>
-</head>
-<body class="login-hero">
-    <?php include 'header.php'; ?>
-    <div class="marquee-bar">
-        <div class="marquee">சன் மெட்ரிமோனி | அன்பும் நம்பிக்கையும் இணையும் இடம் | புதிய சுயவிவரம் உருவாக்கி உங்கள் வாழ்க்கை துணையைத் தேடுங்கள்</div>
-    </div>
+</style>
+    </head>
+    <body class="login-hero">
+        <?php include 'header.php'; ?>
+        <div class="marquee-bar">
+            <div class="marquee">சன் மெட்ரிமோனி | அன்பும் நம்பிக்கையும் இணையும் இடம் | புதிய சுயவிவரம் உருவாக்கி உங்கள் வாழ்க்கை துணையைத் தேடுங்கள்</div>
+        </div>
     <div class="container">
         <div class="row justify-content-center mt-5">
             <div class="col-md-5">
@@ -210,9 +210,11 @@ if (false) { // disabled OTP for all
                         </form>
                     </div>
                 </div>
-                <p class="text-center mt-3 text-muted">© <?php echo date('Y'); ?> திருமண பதிவு அமைப்பு</p>
             </div>
         </div>
     </div>
+    <footer class="text-center text-white py-2 fixed-bottom" style="background: rgba(0,0,0,0.7);">
+        <p class="mb-0 small">சன் மேட்ரிமோனி | www.sunmatri.in | +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651</p>
+    </footer>
 </body>
 </html>

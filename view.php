@@ -62,7 +62,13 @@ $districtsMap = [
     'Tiruvarur' => 'திருவாரூர்',
     'Vellore' => 'வேலூர்',
     'Viluppuram' => 'விழுப்புரம்',
-    'Virudhunagar' => 'விருதுநகர்'
+    'Virudhunagar' => 'விருதுநகர்',
+    'Chengalpattu' => 'செங்கல்பட்டு',
+    'Mayiladuthurai' => 'மயிலாடுதுறை',
+    'Ranipet' => 'ராணிப்பேட்டை',
+    'Tenkasi' => 'தென்கசி',
+    'Tirupathur' => 'திருப்பதூர்',
+    'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
 <!DOCTYPE html>
@@ -182,55 +188,24 @@ $districtsMap = [
                                     </tr>
                                     
                                     <tr>
-                                        <th>சகோதரர்கள் (மொத்தம்):</th>
+                                        <th>சகோதரர்கள்:</th>
                                         <td><?php echo htmlspecialchars($profile['brothers_total'] ?? '0'); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>சகோதரர்கள் (திருமணமான):</th>
-                                        <td><?php echo htmlspecialchars($profile['brothers_married'] ?? '0'); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th>சகோதரிகள் (மொத்தம்):</th>
+                                        <th>சகோதரிகள்:</th>
                                         <td><?php echo htmlspecialchars($profile['sisters_total'] ?? '0'); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>சகோதரிகள் (திருமணமான):</th>
-                                        <td><?php echo htmlspecialchars($profile['sisters_married'] ?? '0'); ?></td>
-                                    </tr>
-                                    <tr>
                                         <th>தொலைபேசி 1:</th>
-                                        <td><?php
-                                            $phoneVal = $profile['phone_primary'] ?? '';
-if (!empty($phoneVal)) {
-                                                if (getUserRole() === 'manager') {
-                                                    echo '';
-                                                } else {
-                                                    echo htmlspecialchars($phoneVal);
-                                                }
-                                            }
-                                        ?></td>
+                                        <td><?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_primary'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
                                         <th>தொலைபேசி 2:</th>
-                                        <td><?php
-                                            $phoneVal = $profile['phone_secondary'] ?? '';
-                                            if (!empty($phoneVal)) {
-                                                if (getUserRole() === 'manager') {
-                                                    $len = strlen($phoneVal);
-                                                    if ($len > 5) {
-                                                        echo str_repeat('#', $len - 5) . substr($phoneVal, -5);
-                                                    } else {
-                                                        echo $phoneVal;
-                                                    }
-                                                } else {
-                                                    echo htmlspecialchars($phoneVal);
-                                                }
-                                            }
-                                        ?></td>
+                                        <td><?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_secondary'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
                                         <th>குறிப்பு:</th>
-                                        <td><?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars(mb_substr($profile['phone_tertiary'] ?? '', 0, 30)); ?></td>
                                     </tr>
                                    
                                         
@@ -251,7 +226,6 @@ if (!empty($phoneVal)) {
                         </div>
                         
                         <div class="mt-3">
-                            <a href="profiles.php" class="btn btn-secondary">Back to Profiles</a>
                             <?php if (!isCustomerRole()): ?>
                             <a href="edit.php?id=<?php echo $profile['id']; ?>" class="btn btn-warning">Edit Profile</a>
                             <?php endif; ?>

@@ -35,12 +35,6 @@ if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die('CSRF token validation failed');
-    }
-}
-
 $id = $_GET['id'] ?? null;
 if (!$id) {
     header('Location: profiles.php');
@@ -48,6 +42,31 @@ if (!$id) {
 }
 
 $message = '';
+$messageType = 'info';
+
+if (isset($_GET['updated']) && $_GET['updated'] === '1') {
+    $message = 'சுயவிவரம் வெற்றிகரமாக புதுப்பிக்கப்பட்டது!';
+    $messageType = 'success';
+}
+
+if (!function_exists('parseBirthDateInput')) {
+    function parseBirthDateInput($value) {
+        $value = trim((string)$value);
+        if ($value === '') {
+            return null;
+        }
+
+        $formats = ['d-m-Y', 'd/m/Y', 'Y-m-d'];
+        foreach ($formats as $format) {
+            $date = DateTime::createFromFormat($format, $value);
+            if ($date && $date->format($format) === $value) {
+                return $date;
+            }
+        }
+
+        return null;
+    }
+}
 
 // Constants for file upload
 define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
@@ -66,6 +85,13 @@ if (!$profile) {
 
 // Prepare existing birth date/time parts for form prefill
 $existing_birth_date = $profile['birth_date'] ?? '';
+if (!empty($existing_birth_date)) {
+    $d = DateTime::createFromFormat('Y-m-d', $existing_birth_date);
+    if ($d) {
+        $existing_birth_date = $d->format('Y-m-d');
+    }
+}
+$display_birth_date = $existing_birth_date;
 $birth_hour_val = '';
 $birth_minute_val = '';
 $birth_ampm_val = '';
@@ -77,9 +103,13 @@ if (!empty($profile['birth_time'])) {
     }
 }
 
-// Compute display age from birth_date if present, otherwise use stored age
-$display_age = isset($profile['age']) ? (int)$profile['age'] : null;
-if (!empty($profile['birth_date'])) {
+// Display age - priority: POST value > stored age > computed from birth_date
+$display_age = null;
+if (isset($_POST['age']) && $_POST['age'] !== '') {
+    $display_age = (int)$_POST['age'];
+} elseif (isset($profile['age'])) {
+    $display_age = (int)$profile['age'];
+} elseif (!empty($profile['birth_date'])) {
     $d = DateTime::createFromFormat('Y-m-d', $profile['birth_date']);
     if ($d) {
         $display_age = $d->diff(new DateTime())->y;
@@ -87,43 +117,11 @@ if (!empty($profile['birth_date'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = $_POST['name'] ?? '';
-    $age = isset($_POST['age']) ? (int)$_POST['age'] : null;
-    $marriage_type = $_POST['marriage_type'] ?? '';
-    $gender = $_POST['gender'] ?? '';
-    $district = $_POST['district'] ?? '';
-    $city = $_POST['city'] ?? '';
-        $birth_place = $_POST['birth_place'] ?? '';
-    $caste = $_POST['caste'] ?? '';
-    $kulam = trim($_POST['kulam'] ?? '');
-    $nakshatram = $_POST['nakshatram'] ?? '';
-    $rasi = $_POST['rasi'] ?? '';
-    $religion = $_POST['religion'] ?? '';
-    $education = $_POST['education_select'] ?? '';
-    $education_text = trim($_POST['education_text'] ?? '');
-    $notes = trim($_POST['notes'] ?? '');
-    // Removed father_name and mother_name
-    // Birth date and time
-    $birth_date = isset($_POST['birth_date']) ? trim($_POST['birth_date']) : null; // YYYY-MM-DD
-    if ($birth_date === '') {
-        $birth_date = null;
-    } else {
-        // validate date format (YYYY-MM-DD)
-        $d = DateTime::createFromFormat('Y-m-d', $birth_date);
-        if (!$d || $d->format('Y-m-d') !== $birth_date) {
-            // invalid date, clear to null to avoid DB errors
-            $birth_date = null;
-        }
-    }
-    $birth_hour = isset($_POST['birth_hour']) ? (int)$_POST['birth_hour'] : null;
-    $birth_minute = isset($_POST['birth_minute']) ? (int)$_POST['birth_minute'] : null;
-    $birth_ampm = $_POST['birth_ampm'] ?? '';
-    $birth_time = null;
-    if ($birth_hour !== null && $birth_minute !== null && in_array(strtoupper($birth_ampm), ['AM','PM'])) {
-        $birth_time = sprintf('%02d:%02d %s', $birth_hour, $birth_minute, strtoupper($birth_ampm));
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        die('CSRF token validation failed');
     }
 
-    // Compute age from birth date if provided (server-side source of truth)
+    // Function to compute age from date
     if (!function_exists('computeAgeFromDate')) {
         function computeAgeFromDate($dateStr) {
             $d = DateTime::createFromFormat('Y-m-d', $dateStr);
@@ -134,23 +132,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (!empty($birth_date)) {
-        $computedAge = computeAgeFromDate($birth_date);
-        if ($computedAge !== null) {
-            $age = $computedAge;
+    $name = $_POST['name'] ?? '';
+    $age = isset($_POST['age']) ? (int)$_POST['age'] : null;
+    $marriage_type = $_POST['marriage_type'] ?? '';
+    $gender = $_POST['gender'] ?? '';
+    $district = $_POST['district'] ?? '';
+    $city = $_POST['city'] ?? '';
+    $birth_place = $_POST['birth_place'] ?? '';
+    $caste = $_POST['caste'] ?? '';
+    $kulam = trim($_POST['kulam'] ?? '');
+    $nakshatram = $_POST['nakshatram'] ?? '';
+    $rasi = $_POST['rasi'] ?? '';
+    $religion = $_POST['religion'] ?? '';
+    $education = $_POST['education_select'] ?? '';
+    $education_text = trim($_POST['education_text'] ?? '');
+    $notes = trim($_POST['notes'] ?? '');
+    // Birth date and time
+    $original_birth_date = isset($_POST['birth_date']) ? trim($_POST['birth_date']) : null;
+    $birth_date = isset($_POST['birth_date']) ? trim($_POST['birth_date']) : null;
+    if ($birth_date) {
+        $dateObj = parseBirthDateInput($birth_date);
+        if ($dateObj) {
+            $birth_date = $dateObj->format('Y-m-d');
+            $age = computeAgeFromDate($birth_date);
+        } else {
+            $birth_date = null;
+            $age = null;
         }
+    } else {
+        $age = null;
     }
+    $birth_hour = isset($_POST['birth_hour']) ? (int)$_POST['birth_hour'] : null;
+    $birth_minute = isset($_POST['birth_minute']) ? (int)$_POST['birth_minute'] : null;
+    $birth_ampm = $_POST['birth_ampm'] ?? '';
+    $birth_time = null;
+    if ($birth_hour !== null && $birth_minute !== null && in_array(strtoupper($birth_ampm), ['AM','PM'])) {
+        $birth_time = sprintf('%02d:%02d %s', $birth_hour, $birth_minute, strtoupper($birth_ampm));
+    }
+
+    // For form redisplay
+    $display_birth_date = $original_birth_date ?? '';
 
     // Sibling fields
     $brothers_total = isset($_POST['brothers_total']) ? (int)$_POST['brothers_total'] : 0;
-    $brothers_married = isset($_POST['brothers_married']) ? (int)$_POST['brothers_married'] : 0;
+    $brothers_married = 0;
     $sisters_total = isset($_POST['sisters_total']) ? (int)$_POST['sisters_total'] : 0;
-    $sisters_married = isset($_POST['sisters_married']) ? (int)$_POST['sisters_married'] : 0;
+    $sisters_married = 0;
     // Profession and phone numbers
     $profession = trim($_POST['profession'] ?? '');
-    $phone1 = trim($_POST['phone1'] ?? '');
-    $phone2 = trim($_POST['phone2'] ?? '');
-    $phone3 = trim($_POST['phone3'] ?? '');
+    if (getUserRole() === 'manager') {
+        $phone1 = $profile['phone_primary'] ?? '';
+        $phone2 = $profile['phone_secondary'] ?? '';
+        $phone3 = $profile['phone_tertiary'] ?? '';
+    } else {
+        $phone1 = trim($_POST['phone1'] ?? '');
+        $phone2 = trim($_POST['phone2'] ?? '');
+        $phone3 = trim($_POST['phone3'] ?? '');
+    }
 
     // Handle file uploads
     $profile_photo = $_FILES['profile_photo'] ?? null;
@@ -208,6 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (Exception $e) {
             $message = "Profile photo error: " . $e->getMessage();
+            $messageType = 'info';
         }
     }
 
@@ -231,6 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (Exception $e) {
             $message = ($message ? $message . "<br>" : "") . "Supporting document error: " . $e->getMessage();
+            $messageType = 'info';
         }
     }
 
@@ -266,10 +306,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $profession,
                 $phone1,
                 $phone2,
-                        $phone3,
-                        $notes,
-                        $profile_photo_path,
-                        $supporting_doc_path,
+                $phone3,
+                $notes,
+                $profile_photo_path,
+                $supporting_doc_path,
                 $id
             ]);
 
@@ -280,12 +320,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         
-        // If we have a non-fatal message (e.g. file upload warnings), refresh profile data so the form shows latest DB values
+        // If we have a non-fatal message, refresh profile data so the form shows latest DB values
         $stmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ?");
         $stmt->execute([$id]);
         $profile = $stmt->fetch();
     } catch (PDOException $e) {
         $message = "Error updating profile: " . $e->getMessage();
+        $messageType = 'danger';
     }
 }
 
@@ -323,7 +364,13 @@ $districtsMap = [
     'Tiruvarur' => 'திருவாரூர்',
     'Vellore' => 'வேலூர்',
     'Viluppuram' => 'விழுப்புரம்',
-    'Virudhunagar' => 'விருதுநகர்'
+    'Virudhunagar' => 'விருதுநகர்',
+    'Chengalpattu' => 'செங்கல்பட்டு',
+    'Mayiladuthurai' => 'மயிலாடுதுறை',
+    'Ranipet' => 'ராணிப்பேட்டை',
+    'Tenkasi' => 'தென்கசி',
+    'Tirupathur' => 'திருப்பதூர்',
+    'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
 <!DOCTYPE html>
@@ -333,6 +380,7 @@ $districtsMap = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Profile - Marriage Profile System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <link href="style.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -341,7 +389,7 @@ $districtsMap = [
     <div class="container mt-4">
         <h2>Edit Profile</h2>
         <?php if ($message): ?>
-            <div class="alert alert-info"><?php echo htmlspecialchars($message); ?></div>
+            <div class="alert alert-<?php echo htmlspecialchars($messageType); ?>"><?php echo htmlspecialchars($message); ?></div>
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
@@ -386,14 +434,13 @@ $districtsMap = [
                 <!-- 4. Birth date -->
                 <div class="col-md-6 mb-3">
                     <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்)</label>
-                    <input type="date" class="form-control" id="birth_date" name="birth_date" value="<?php echo htmlspecialchars($existing_birth_date); ?>">
+                    <input type="date" class="form-control" id="birth_date" name="birth_date" value="<?php echo htmlspecialchars($display_birth_date); ?>">
                 </div>
 
-                <!-- 5. Age display -->
+                <!-- 5. Age -->
                 <div class="col-md-6 mb-3">
-                    <label for="age_display" class="form-label">வயது</label>
-                    <input type="text" class="form-control" id="age_display" value="<?php echo htmlspecialchars($display_age); ?>" disabled>
-                    <input type="hidden" id="age" name="age" value="<?php echo htmlspecialchars($display_age); ?>">
+                    <label for="age" class="form-label">வயது</label>
+                    <input type="number" class="form-control" id="age" name="age" value="<?php echo htmlspecialchars($display_age); ?>" readonly>
                 </div>
 
                 <!-- 6. Birth time -->
@@ -475,6 +522,8 @@ $districtsMap = [
                             'செட்டியார் (சைவ செட்டியார்)',
                             'செட்டியார் (நாட்டுக்கோட்டை செட்டியார்)',
                             'செட்டியார் (ஆரிய வைசியர்)',
+                            'செட்டியார் (ஆயிரம் வைசியர்)',
+                            'செட்டியார் (வெள்ளஞ்செட்டியார்)',
                             'தேவர் (அகமுடையார்)',
                             'தேவர் (மறவர்)',
                             'தேவர் (கள்ளர்)',
@@ -569,7 +618,7 @@ $districtsMap = [
                     <input type="text" class="form-control" id="profession" name="profession" value="<?php echo htmlspecialchars($profile['profession'] ?? ''); ?>" placeholder="உதா: ஆசிரியர், பொறியாளர்">
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="district" class="form-label">மாவட்டம்</label>
+                    <label for="district" class="form-label">வசிக்கும் மாவட்டம்</label>
                     <select class="form-select" id="district" name="district">
                         <option value="">மாவட்டத்தைத் தேர்வு செய்க</option>
                         <?php foreach($districtsMap as $en => $ta): ?>
@@ -586,7 +635,7 @@ $districtsMap = [
                 <div class="col-12 mb-3">
                     <div class="row g-2">
                         <div class="col-md-3">
-                            <label for="brothers_total" class="form-label">சகோதரர்கள் (மொத்தம்)</label>
+                            <label for="brothers_total" class="form-label">சகோதரர்கள்</label>
                             <select class="form-select" id="brothers_total" name="brothers_total">
                                 <?php for ($i=0; $i<=5; $i++): $sel = (isset($profile['brothers_total']) && (int)$profile['brothers_total'] === $i) ? 'selected' : ''; ?>
                                     <option value="<?php echo $i; ?>" <?php echo $sel; ?>><?php echo $i; ?></option>
@@ -594,25 +643,9 @@ $districtsMap = [
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label for="brothers_married" class="form-label">சகோதரர்கள் (திருமணமான)</label>
-                            <select class="form-select" id="brothers_married" name="brothers_married">
-                                <?php for ($i=0; $i<=5; $i++): $sel = (isset($profile['brothers_married']) && (int)$profile['brothers_married'] === $i) ? 'selected' : ''; ?>
-                                    <option value="<?php echo $i; ?>" <?php echo $sel; ?>><?php echo $i; ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="sisters_total" class="form-label">சகோதரிகள் (மொத்தம்)</label>
+                            <label for="sisters_total" class="form-label">சகோதரிகள்</label>
                             <select class="form-select" id="sisters_total" name="sisters_total">
                                 <?php for ($i=0; $i<=5; $i++): $sel = (isset($profile['sisters_total']) && (int)$profile['sisters_total'] === $i) ? 'selected' : ''; ?>
-                                    <option value="<?php echo $i; ?>" <?php echo $sel; ?>><?php echo $i; ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="sisters_married" class="form-label">சகோதரிகள் (திருமணமான)</label>
-                            <select class="form-select" id="sisters_married" name="sisters_married">
-                                <?php for ($i=0; $i<=5; $i++): $sel = (isset($profile['sisters_married']) && (int)$profile['sisters_married'] === $i) ? 'selected' : ''; ?>
                                     <option value="<?php echo $i; ?>" <?php echo $sel; ?>><?php echo $i; ?></option>
                                 <?php endfor; ?>
                             </select>
@@ -624,15 +657,15 @@ $districtsMap = [
                 <?php if (getUserRole() !== 'manager'): ?>
                 <div class="col-md-4 mb-3">
                     <label for="phone1" class="form-label">தொலைபேசி 1</label>
-                    <input type="tel" class="form-control" id="phone1" name="phone1" value="<?php echo htmlspecialchars($profile['phone_primary'] ?? ''); ?>">
+                    <input type="tel" class="form-control" id="phone1" name="phone1" value="<?php echo htmlspecialchars($profile['phone_primary'] ?? ''); ?>" maxlength="10">
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="phone2" class="form-label">தொலைபேசி 2</label>
-                    <input type="tel" class="form-control" id="phone2" name="phone2" value="<?php echo htmlspecialchars($profile['phone_secondary'] ?? ''); ?>">
+                    <input type="tel" class="form-control" id="phone2" name="phone2" value="<?php echo htmlspecialchars($profile['phone_secondary'] ?? ''); ?>" maxlength="10">
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="phone3" class="form-label">குறிப்பு</label>
-                    <input type="tel" class="form-control" id="phone3" name="phone3" value="<?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?>">
+                    <input type="text" class="form-control" id="phone3" name="phone3" value="<?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?>" maxlength="30">
                 </div>
                 <?php endif; ?>
 
@@ -663,7 +696,7 @@ $districtsMap = [
                 <!-- 27. Notes (editable only in edit.php) -->
                 <div class="col-12 mb-3">
                     <label for="notes" class="form-label">குறிப்பு விவரங்கள்</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="குறிப்பு விவரங்களை உள்ளிடவும்"><?php echo htmlspecialchars($profile['notes'] ?? ''); ?></textarea>
+                    <textarea class="form-control" id="notes" name="notes" rows="4" maxlength="30" placeholder="குறிப்பு விவரங்களை உள்ளிடவும்"><?php echo htmlspecialchars($profile['notes'] ?? ''); ?></textarea>
                 </div>
             </div>
 
@@ -672,6 +705,8 @@ $districtsMap = [
         </form>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Form validation
@@ -688,8 +723,8 @@ $districtsMap = [
                 }
             }
 
-            // Add phone validation to all phone inputs
-            ['phone1', 'phone2', 'phone3'].forEach(id => {
+            // Add phone validation to phone1 and phone2 only (not phone3 which is text)
+            ['phone1', 'phone2'].forEach(id => {
                 const input = document.getElementById(id);
                 if (input) {
                     input.addEventListener('input', function() {
@@ -724,13 +759,60 @@ $districtsMap = [
                 document.getElementById(id).addEventListener('change', validateSiblings);
             });
 
+            function parseBirthDate(value) {
+                if (!value) return null;
+                const normalized = value.trim().replace(/\//g, '-');
+                const parts = normalized.split('-');
+                if (parts.length !== 3) return null;
+
+                let day;
+                let month;
+                let year;
+
+                if (parts[0].length === 4) {
+                    year = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10) - 1;
+                    day = parseInt(parts[2], 10);
+                } else {
+                    day = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10) - 1;
+                    year = parseInt(parts[2], 10);
+                }
+
+                if ([day, month, year].some(Number.isNaN)) return null;
+
+                const birthDate = new Date(year, month, day);
+                if (
+                    Number.isNaN(birthDate.getTime()) ||
+                    birthDate.getFullYear() !== year ||
+                    birthDate.getMonth() !== month ||
+                    birthDate.getDate() !== day
+                ) {
+                    return null;
+                }
+
+                return birthDate;
+            }
+
+            // Calculate age from date string (DD-MM-YYYY)
+            function calculateAge(dateStr) {
+                const birthDate = parseBirthDate(dateStr);
+                if (!birthDate) return 0;
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                return age;
+            }
+
             // Birth date validation and auto-update age select
             const birthDateInput = document.getElementById('birth_date');
             if (birthDateInput) {
                 function computeAgeFromDateJS(value) {
-                    if (!value) return null;
-                    const d = new Date(value);
-                    if (isNaN(d.getTime())) return null;
+                    const d = parseBirthDate(value);
+                    if (!d || isNaN(d.getTime())) return null;
                     const today = new Date();
                     let age = today.getFullYear() - d.getFullYear();
                     const m = today.getMonth() - d.getMonth();
@@ -740,33 +822,42 @@ $districtsMap = [
                     return age;
                 }
 
-                birthDateInput.addEventListener('input', function() {
-                    const selectedDate = new Date(this.value);
+                function validateBirthDate() {
+                    const selectedDate = this.value;
+                    const ageInput = document.getElementById('age');
+                    if (!selectedDate.trim()) {
+                        this.setCustomValidity('');
+                        if (ageInput) {
+                            ageInput.value = '';
+                        }
+                        return;
+                    }
                     const today = new Date();
                     const minDate = new Date();
                     minDate.setFullYear(today.getFullYear() - 70); // Max age 70 years
                     const maxDate = new Date();
                     maxDate.setFullYear(today.getFullYear() - 18); // Min age 18 years
+                    const validDate = parseBirthDate(selectedDate);
 
-                    if (selectedDate > maxDate) {
+                    if (!validDate || isNaN(validDate.getTime())) {
+                        this.setCustomValidity('Please choose a valid birth date.');
+                    } else if (validDate > maxDate) {
                         this.setCustomValidity('Age must be at least 18 years');
-                    } else if (selectedDate < minDate) {
+                    } else if (validDate < minDate) {
                         this.setCustomValidity('Age cannot exceed 70 years');
                     } else {
                         this.setCustomValidity('');
                     }
 
-                    // Auto-update the age hidden input and the visible age display
-                    const ageHidden = document.getElementById('age');
-                    const ageDisplay = document.getElementById('age_display');
-                    if (ageHidden && ageDisplay) {
+                    // Auto-update age when birth date changes
+                    if (ageInput) {
                         const ageVal = computeAgeFromDateJS(this.value);
-                        if (ageVal !== null && !isNaN(ageVal)) {
-                            ageHidden.value = ageVal;
-                            ageDisplay.value = ageVal;
-                        }
+                        ageInput.value = ageVal !== null && !isNaN(ageVal) ? ageVal : '';
                     }
-                });
+                }
+
+                birthDateInput.addEventListener('input', validateBirthDate);
+                birthDateInput.addEventListener('change', validateBirthDate);
             }
 
             // File size validation
@@ -789,6 +880,17 @@ $districtsMap = [
                     });
                 }
             });
+
+            if (birthDateInput) {
+                const today = new Date();
+                const minDate = new Date();
+                minDate.setFullYear(today.getFullYear() - 70);
+                const maxDate = new Date();
+                maxDate.setFullYear(today.getFullYear() - 18);
+
+                birthDateInput.min = minDate.toISOString().split('T')[0];
+                birthDateInput.max = maxDate.toISOString().split('T')[0];
+            }
 
             // Form submit validation
             var forms = document.querySelectorAll('.needs-validation')

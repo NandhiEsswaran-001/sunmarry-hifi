@@ -245,7 +245,13 @@ $districtsMap = [
     'Tiruvarur' => 'திருவாரூர்',
     'Vellore' => 'வேலூர்',
     'Viluppuram' => 'விழுப்புரம்',
-    'Virudhunagar' => 'விருதுநகர்'
+    'Virudhunagar' => 'விருதுநகர்',
+    'Chengalpattu' => 'செங்கல்பட்டு',
+    'Mayiladuthurai' => 'மயிலாடுதுறை',
+    'Ranipet' => 'ராணிப்பேட்டை',
+    'Tenkasi' => 'தென்கசி',
+    'Tirupathur' => 'திருப்பதூர்',
+    'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
 <!DOCTYPE html>
@@ -334,12 +340,6 @@ $districtsMap = [
             font-size: 0.875rem;
         }
 
-        /* Custom container width for larger screens */
-        @media (min-width: 1400px) {
-            .container, .container-lg, .container-md, .container-sm, .container-xl, .container-xxl {
-                max-width: 1520px;
-            }
-        }
     </style>
 </head>
 <body class="bg-light">
@@ -420,7 +420,7 @@ $districtsMap = [
                         </div>
                     </div>
 
-                    <!-- Row 2: சாதி பெயர் (Caste)/ படிப்பு (Education)/ மாவட்டங்கள் -->
+                    <!-- Row 2: சாதி பெயர் (Caste)/ படிப்பு (Education)/ வசிக்கும் மாவட்டங்கள் -->
                     <div class="col-md-4">
                         <label class="form-label">சாதி பெயர் (Caste)</label>
                         <div class="district-dropdown dropdown">
@@ -453,6 +453,8 @@ $districtsMap = [
                                     'செட்டியார் (சைவ செட்டியார்)',
                                     'செட்டியார் (நாட்டுக்கோட்டை செட்டியார்)',
                                     'செட்டியார் (ஆரிய வைசியர்)',
+                                    'செட்டியார் (ஆயிரம் வைசியர்)',
+                                    'செட்டியார் (வெள்ளஞ்செட்டியார்)',
                                     'தேவர் (அகமுடையார்)',
                                     'தேவர் (மறவர்)',
                                     'தேவர் (கள்ளர்)',
@@ -535,7 +537,7 @@ $districtsMap = [
 
                     <?php if (!$isNormalCustomer): ?>
                     <div class="col-md-4">
-                        <label class="form-label">மாவட்டங்கள்</label>
+                        <label class="form-label">வசிக்கும் மாவட்டங்கள்</label>
                         <div class="district-dropdown dropdown">
                             <button class="btn btn-light border dropdown-toggle" type="button" id="districtDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                                 மாவட்டம் தேர்வு
@@ -591,35 +593,6 @@ $districtsMap = [
 
                     <?php endif; ?>
 
-                    <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
-                    <div class="col-md-4">
-                        <label class="form-label">நட்சத்திரம் (Nakshatram)</label>
-
-                        <div class="district-dropdown dropdown">
-                            <button class="btn btn-light border dropdown-toggle" type="button" id="nakshatramDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                நட்சத்திரம் தேர்வு
-                                <span id="selectedNakshatramCount"></span>
-                            </button>
-                            <div class="dropdown-menu w-100" aria-labelledby="nakshatramDropdown">
-                                <div class="search-box">
-                                    <input type="text" class="form-control form-control-sm" id="nakshatramSearch" placeholder="Search nakshatram...">
-                                    <div class="d-flex justify-content-between mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllNakshatram">Select All</button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" id="clearAllNakshatram">Clear All</button>
-                                    </div>
-                                </div>
-                                <?php 
-                                $selectedNakshatram = isset($_GET['nakshatram']) ? (array)$_GET['nakshatram'] : [];
-                                foreach($nakshatramOptions as $option): ?>
-                                <label class="dropdown-item">
-                                    <input type="checkbox" name="nakshatram[]" value="<?php echo htmlspecialchars($option); ?>" <?php echo in_array($option, $selectedNakshatram) ? 'checked' : ''; ?>>
-                                    <?php echo htmlspecialchars($option); ?>
-                                </label>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="col-md-4">
                         <label for="city" class="form-label">வசிக்கும் ஊர்</label>
                         <input type="text" class="form-control" id="city" name="city" 
@@ -648,14 +621,13 @@ $districtsMap = [
                         </div>
                     </div>
 
-<?php if (getUserRole() !== 'manager'): ?>
+<?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
                     <div class="col-md-4">
                         <label for="phone" class="form-label">போன்</label>
                         <input type="text" class="form-control" id="phone" name="phone" 
                                value="<?php echo htmlspecialchars($phone); ?>" 
                                placeholder="Search mobile...">
                     </div>
-                    <?php endif; ?>
                     <?php endif; ?>
 
                     <?php if (isCustomerRole()): ?>

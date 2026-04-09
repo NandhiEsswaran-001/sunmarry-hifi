@@ -66,7 +66,13 @@ $districtsMap = [
     'Tiruvarur' => 'திருவாரூர்',
     'Vellore' => 'வேலூர்',
     'Viluppuram' => 'விழுப்புரம்',
-    'Virudhunagar' => 'விருதுநகர்'
+    'Virudhunagar' => 'விருதுநகர்',
+    'Chengalpattu' => 'செங்கல்பட்டு',
+    'Mayiladuthurai' => 'மயிலாடுதுறை',
+    'Ranipet' => 'ராணிப்பேட்டை',
+    'Tenkasi' => 'தென்கசி',
+    'Tirupathur' => 'திருப்பதூர்',
+    'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
 <!DOCTYPE html>
@@ -219,6 +225,11 @@ body { font-weight: 600; }
     border-spacing: 0 6px;
 }
 
+.right-side td.phone-cell {
+    font-size: 13px;
+    letter-spacing: 0.5px;
+}
+
 .right-side th {
     text-align: left;
     width: 42%;
@@ -310,13 +321,10 @@ body { font-weight: 600; }
 
 <div class="no-print text-center mt-3" style="margin:8px;">
     <button onclick="window.print()" class="btn btn-primary">🖨️ Print</button>
-    <a href="profiles.php" class="btn btn-secondary">⬅️ Back</a>
 </div>
 
 <div class="print-layout">
     <div class="header">
-        
-        <p>சன் மேட்ரிமோனி | www.sunmatri.in | +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651</p>
         
         <p>Profile ID: <strong><?php echo htmlspecialchars($profile['id']); ?></strong></p>
     </div>
@@ -366,7 +374,7 @@ body { font-weight: 600; }
 
                 <tr><th>பிறந்த ஊர்:</th><td><?php echo htmlspecialchars($profile['birth_place'] ?? ''); ?></td></tr>
 
-                <tr><th>குறிப்பு விவரங்கள்:</th><td><?php echo nl2br(htmlspecialchars($profile["notes"] ?? "")); ?></td></tr>
+                <?php /* Hidden: <tr><th>குறிப்பு விவரங்கள்:</th><td><?php echo nl2br(htmlspecialchars($profile["notes"] ?? "")); ?></td></tr> */ ?>
                 
                 <tr><th>ராசி:</th><td><?php echo htmlspecialchars($profile['rasi']); ?></td></tr>
                 <tr><th>நட்சத்திரம்:</th><td><?php echo htmlspecialchars($profile['nakshatram']); ?></td></tr>
@@ -401,13 +409,11 @@ body { font-weight: 600; }
                 
                 
                 
-                <tr><th>சகோதரர்கள் (மொத்தம்):</th><td><?php echo htmlspecialchars($profile['brothers_total']); ?></td></tr>
-                <tr><th>சகோதரர்கள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['brothers_married']); ?></td></tr>
-                <tr><th>சகோதரிகள் (மொத்தம்):</th><td><?php echo htmlspecialchars($profile['sisters_total']); ?></td></tr>
-                <tr><th>சகோதரிகள் (திருமணமான):</th><td><?php echo htmlspecialchars($profile['sisters_married']); ?></td></tr>
-<?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_primary'] ?? ''); ?>
-<?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_secondary'] ?? ''); ?>
-                <tr><th>குறிப்பு :</th><td><?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?></td></tr>
+                <tr><th>சகோதரர்கள்:</th><td><?php echo htmlspecialchars($profile['brothers_total']); ?></td></tr>
+                <tr><th>சகோதரிகள்:</th><td><?php echo htmlspecialchars($profile['sisters_total']); ?></td></tr>
+                <tr><th>தொலைபேசி 1:</th><td class="phone-cell"><?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_primary'] ?? ''); ?></td></tr>
+                <tr><th>தொலைபேசி 2:</th><td class="phone-cell"><?php echo (getUserRole() === 'manager') ? '' : htmlspecialchars($profile['phone_secondary'] ?? ''); ?></td></tr>
+                <tr><th>குறிப்பு :</th><td><?php echo htmlspecialchars(mb_substr($profile['phone_tertiary'] ?? '', 0, 30)); ?></td></tr>
             </table>
             </table>
         </div>
