@@ -208,7 +208,7 @@ body { font-weight: 600; }
     /* both images together should not exceed ~120mm */
     max-height: 100mm; /* reduce image heights to fit single page */
     height: auto;
-    object-fit: cover;
+    object-fit: contain;
    
     display: block;
 }
@@ -419,12 +419,16 @@ body { font-weight: 600; }
                         echo $d ? $d->format('d-m-Y') : htmlspecialchars($profile['birth_date']);
                     }
                 ?></td></tr>
-                <tr><th>பிறந்த நேரம்:</th><td><?php echo htmlspecialchars($profile['birth_time']); ?></td></tr>
-
-                <tr><th>பிறந்த ஊர்:</th><td><?php echo htmlspecialchars($profile['birth_place'] ?? ''); ?></td></tr>
-
-                <?php /* Hidden: <tr><th>குறிப்பு விவரங்கள்:</th><td><?php echo nl2br(htmlspecialchars($profile["notes"] ?? "")); ?></td></tr> */ ?>
-
+                <tr><th>வயது:</th><td><?php
+                    if (!empty($profile['birth_date'])) {
+                        $birthDate = DateTime::createFromFormat('Y-m-d', $profile['birth_date']);
+                        if ($birthDate) {
+                            $today = new DateTime();
+                            $age = $today->diff($birthDate)->y;
+                            echo htmlspecialchars($age);
+                        }
+                    }
+                ?></td></tr>
                 <tr><th>படிப்பு பிரிவு:</th><td><?php
                     $educationType = trim($profile['education_type'] ?? '');
                     $educationDetails = trim($profile['education_details'] ?? '');

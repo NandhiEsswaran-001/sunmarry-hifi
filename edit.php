@@ -85,13 +85,13 @@ if (!$profile) {
 
 // Prepare existing birth date/time parts for form prefill
 $existing_birth_date = $profile['birth_date'] ?? '';
+$display_birth_date = '';
 if (!empty($existing_birth_date)) {
     $d = DateTime::createFromFormat('Y-m-d', $existing_birth_date);
     if ($d) {
-        $existing_birth_date = $d->format('Y-m-d');
+        $display_birth_date = $d->format('d/m/Y');
     }
 }
-$display_birth_date = $existing_birth_date;
 $birth_hour_val = '';
 $birth_minute_val = '';
 $birth_ampm_val = '';
@@ -382,7 +382,9 @@ $districtsMap = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Profile - Marriage Profile System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- jQuery UI CSS with fallback -->
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/base/jquery-ui.css" id="jquery-ui-fallback">
     <link href="style.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -436,7 +438,10 @@ $districtsMap = [
                 <!-- 4. Birth date -->
                 <div class="col-md-6 mb-3">
                     <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்)</label>
-                    <input type="date" class="form-control" id="birth_date" name="birth_date" value="<?php echo htmlspecialchars($display_birth_date); ?>">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="birth_date" name="birth_date" value="<?php echo htmlspecialchars($display_birth_date); ?>" placeholder="Click to select date">
+                        <button class="btn btn-outline-secondary" type="button" id="date_picker_btn">📅</button>
+                    </div>
                 </div>
 
                 <!-- 5. Age -->
@@ -709,10 +714,114 @@ $districtsMap = [
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Form validation
+        // Check if jQuery loaded
+        if (typeof jQuery === 'undefined') {
+            console.error('jQuery not loaded!');
+            // Fallback: load from Google CDN
+            document.write('<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"><\/script>');
+        } else {
+            console.log('jQuery loaded successfully, version:', jQuery.fn.jquery);
+        }
+    </script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script>
+        // Check if jQuery UI loaded
+        if (typeof jQuery === 'undefined' || typeof jQuery.fn.datepicker === 'undefined') {
+            console.error('jQuery UI not loaded!');
+            // Fallback: load from Google CDN
+            document.write('<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"><\/script>');
+        } else {
+            console.log('jQuery UI loaded successfully');
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Initialize datepicker immediately after libraries load -->
+    <script>
+        (function() {
+            'use strict';
+
+            // Wait for DOM and libraries to be ready
+            function initializeDatepicker() {
+                if (typeof $ === 'undefined' || typeof $.fn === 'undefined' || typeof $.fn.datepicker === 'undefined') {
+                    console.log('Waiting for jQuery UI...');
+                    setTimeout(initializeDatepicker, 100);
+                    return;
+                }
+
+                // Wait for DOM to be ready
+                if (document.readyState !== 'loading') {
+                    doInitialize();
+                } else {
+                    document.addEventListener('DOMContentLoaded', doInitialize);
+                }
+
+                function doInitialize() {
+                    console.log('Initializing datepicker...');
+
+                    const birthDateInput = document.getElementById('birth_date');
+                    const datePickerBtn = document.getElementById('date_picker_btn');
+
+                    if (birthDateInput) {
+                        try {
+                            // Initialize datepicker
+                            $(birthDateInput).datepicker({
+                                dateFormat: 'dd/mm/yy',
+                                changeMonth: true,
+                                changeYear: true,
+                                yearRange: '-70:-18',
+                                maxDate: '-18y',
+                                minDate: '-70y',
+                                onSelect: function(dateText) {
+                                    console.log('Date selected:', dateText);
+                                    // Simple age calculation
+                                    const parts = dateText.split('/');
+                                    if (parts.length === 3) {
+                                        const day = parseInt(parts[0]);
+                                        const month = parseInt(parts[1]) - 1;
+                                        const year = parseInt(parts[2]);
+                                        const birthDate = new Date(year, month, day);
+                                        const today = new Date();
+                                        let age = today.getFullYear() - birthDate.getFullYear();
+                                        const m = today.getMonth() - birthDate.getMonth();
+                                        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                                            age--;
+                                        }
+                                        const ageInput = document.getElementById('age');
+                                        if (ageInput) {
+                                            ageInput.value = age;
+                                        }
+                                    }
+                                }
+                            });
+
+                            console.log('Datepicker initialized successfully');
+
+                            // Handle button click
+                            if (datePickerBtn) {
+                                datePickerBtn.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    $(birthDateInput).datepicker('show');
+                                });
+                            }
+
+                        } catch (error) {
+                            console.error('Error initializing datepicker:', error);
+                        }
+                    } else {
+                        console.error('Birth date input not found');
+                    }
+                }
+            }
+
+            // Start initialization
+            initializeDatepicker();
+        })();
+    </script>
+
+    <script>
+        // Form validation (this runs after datepicker is initialized)
         (function () {
             'use strict'
             
@@ -859,8 +968,17 @@ $districtsMap = [
                     }
                 }
 
-                birthDateInput.addEventListener('input', validateBirthDate);
-                birthDateInput.addEventListener('change', validateBirthDate);
+                // Only validate on blur to avoid interfering with datepicker
+                // The datepicker handles its own validation and age calculation
+                birthDateInput.addEventListener('blur', function() {
+                    // Only validate if the field is not empty and doesn't have a valid date format
+                    const value = this.value.trim();
+                    if (value && !parseBirthDate(value)) {
+                        this.setCustomValidity('Please enter a valid birth date in DD/MM/YYYY format.');
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
             }
 
             // File size validation
@@ -883,17 +1001,6 @@ $districtsMap = [
                     });
                 }
             });
-
-            if (birthDateInput) {
-                const today = new Date();
-                const minDate = new Date();
-                minDate.setFullYear(today.getFullYear() - 70);
-                const maxDate = new Date();
-                maxDate.setFullYear(today.getFullYear() - 18);
-
-                birthDateInput.min = minDate.toISOString().split('T')[0];
-                birthDateInput.max = maxDate.toISOString().split('T')[0];
-            }
 
             // Form submit validation
             var forms = document.querySelectorAll('.needs-validation')

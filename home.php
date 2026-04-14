@@ -363,7 +363,7 @@ $districtsMap = [
                 <!-- 4. Birth date -->
                 <div class="col-md-6 mb-3">
                     <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்)</label>
-                    <input type="date" class="form-control" id="birth_date" name="birth_date" value="<?php echo isset($original_birth_date) ? htmlspecialchars($original_birth_date) : ''; ?>">
+                    <input type="text" class="form-control" id="birth_date" name="birth_date" value="<?php echo isset($original_birth_date) ? htmlspecialchars($original_birth_date) : ''; ?>">
                 </div>
 
                 <!-- 5. Age (computed) -->
@@ -720,15 +720,6 @@ $districtsMap = [
             if (birthDateInput) {
                 birthDateInput.addEventListener('input', updateAge);
                 updateAge();
-
-                const today = new Date();
-                const minDate = new Date();
-                minDate.setFullYear(today.getFullYear() - 70);
-                const maxDate = new Date();
-                maxDate.setFullYear(today.getFullYear() - 18);
-
-                birthDateInput.min = minDate.toISOString().split('T')[0];
-                birthDateInput.max = maxDate.toISOString().split('T')[0];
             }
             if (phone1Input && phone2Input) {
                 phone1Input.addEventListener('input', validatePhones);
@@ -751,6 +742,24 @@ $districtsMap = [
                     }, false)
                 })
         })()
+
+        // Initialize datepicker after DOM is ready
+        $(document).ready(function() {
+            const birthDateInput = document.getElementById('birth_date');
+            if (birthDateInput) {
+                $(birthDateInput).datepicker({
+                    dateFormat: 'dd/mm/yy',
+                    changeMonth: true,
+                    changeYear: true,
+                    yearRange: '-70:-18',
+                    maxDate: '-18y',
+                    minDate: '-70y'
+                }).on('keydown', function(e) {
+                    e.preventDefault();
+                    return false;
+                });
+            }
+        });
     </script>
     <!-- Subcaste mapping removed (subcaste is no longer a separate field) -->
 </body>

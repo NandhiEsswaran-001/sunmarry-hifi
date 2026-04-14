@@ -1,7 +1,86 @@
-/* Custom styles for Marriage Profile System */
+/* Datepicker styles */
+.ui-datepicker {
+  z-index: 99999 !important;
+  background: white !important;
+  border: 2px solid #007bff !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+  font-family: inherit !important;
+  display: block !important;
+  position: absolute !important;
+}
 
-body {
-  background-color: #f8f9fa;
+.ui-datepicker-calendar {
+  display: block !important;
+  width: 100% !important;
+}
+
+.ui-datepicker-header {
+  background: #007bff !important;
+  color: white !important;
+  border-bottom: 1px solid #0056b3 !important;
+  padding: 8px !important;
+}
+
+.ui-datepicker-title {
+  color: white !important;
+  font-weight: bold !important;
+}
+
+.ui-datepicker-prev, .ui-datepicker-next {
+  background: rgba(255,255,255,0.2) !important;
+  border: none !important;
+  color: white !important;
+}
+
+.ui-datepicker-prev:hover, .ui-datepicker-next:hover {
+  background: rgba(255,255,255,0.3) !important;
+}
+
+.ui-datepicker-calendar th {
+  background: #f8f9fa !important;
+  color: #333 !important;
+  border: 1px solid #dee2e6 !important;
+  padding: 4px !important;
+}
+
+.ui-datepicker-calendar td {
+  border: 1px solid #dee2e6 !important;
+  padding: 2px !important;
+}
+
+.ui-datepicker-calendar td a {
+  color: #333 !important;
+  text-decoration: none !important;
+  padding: 4px !important;
+  display: block !important;
+  text-align: center !important;
+}
+
+.ui-datepicker-calendar td a:hover {
+  background: #007bff !important;
+  color: white !important;
+}
+
+.ui-datepicker-today a {
+  background: #ffc107 !important;
+  color: #000 !important;
+  font-weight: bold !important;
+}
+
+.ui-datepicker-current-day a {
+  background: #28a745 !important;
+  color: white !important;
+  font-weight: bold !important;
+}
+
+.ui-datepicker-buttonpane {
+  background: #f8f9fa !important;
+  border-top: 1px solid #dee2e6 !important;
+}
+
+.ui-datepicker-close {
+  float: right !important;
+  margin: 4px !important;
 }
 
 /* Form styles */
