@@ -297,8 +297,8 @@ $districtsMap = [
     'Chengalpattu' => 'செங்கல்பட்டு',
     'Mayiladuthurai' => 'மயிலாடுதுறை',
     'Ranipet' => 'ராணிப்பேட்டை',
-    'Tenkasi' => 'தென்கசி',
-    'Tirupathur' => 'திருப்பதூர்',
+    'Tenkasi' => 'தென்காசி',
+    'Tirupathur' => 'திருப்பத்தூர்',
     'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
@@ -549,8 +549,7 @@ $districtsMap = [
                     <select class="form-select" id="education_select" name="education_select">
                         <option value="">-- தேர்வு செய்க --</option>
                         <option value="10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ">10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ</option>
-                        <option value="இளங்கலை (UG)">இளங்கலை (UG)</option>
-                        <option value="முதுகலை (PG)">முதுகலை (PG)</option>
+                        <option value="UG/PG">இளங்கலை (UG) / முதுகலை (PG)</option>
                     </select>
                 </div>
 
@@ -562,7 +561,7 @@ $districtsMap = [
 
                 <!-- 15. Profession -->
                 <div class="col-md-4 mb-3">
-                    <label for="profession" class="form-label">தொழில் (Profession)</label>
+                    <label for="profession" class="form-label">வேலை (Profession)</label>
                     <input type="text" class="form-control" id="profession" name="profession" placeholder="உதா: ஆசிரியர், பொறியாளர்">
                 </div>
 

@@ -74,8 +74,7 @@ $doshamOptions = [
 
 $educationOptions = [
     '10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ',
-    'இளங்கலை (UG)',
-    'முதுகலை (PG)'
+    'UG/PG'
 ];
 
 // Initialize where/params and by default exclude deleted profiles unless explicitly requested
@@ -249,8 +248,8 @@ $districtsMap = [
     'Chengalpattu' => 'செங்கல்பட்டு',
     'Mayiladuthurai' => 'மயிலாடுதுறை',
     'Ranipet' => 'ராணிப்பேட்டை',
-    'Tenkasi' => 'தென்கசி',
-    'Tirupathur' => 'திருப்பதூர்',
+    'Tenkasi' => 'தென்காசி',
+    'Tirupathur' => 'திருப்பத்தூர்',
     'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
@@ -593,6 +592,36 @@ $districtsMap = [
 
                     <?php endif; ?>
 
+                    <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
+                    <div class="col-md-4">
+                        <label class="form-label">நட்சத்திரம்</label>
+                        <div class="district-dropdown dropdown">
+                            <button class="btn btn-light border dropdown-toggle" type="button" id="nakshatramDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                நட்சத்திரம் தேர்வு
+                                <span id="selectedNakshatramCount"></span>
+                            </button>
+                            <div class="dropdown-menu w-100" aria-labelledby="nakshatramDropdown">
+                                <div class="search-box">
+                                    <input type="text" class="form-control form-control-sm" id="nakshatramSearch" placeholder="Search nakshatram...">
+                                    <div class="d-flex justify-content-between mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllNakshatram">Select All</button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="clearAllNakshatram">Clear All</button>
+                                    </div>
+                                </div>
+                                <?php 
+                                $selectedNakshatram = isset($_GET['nakshatram']) ? (array)$_GET['nakshatram'] : [];
+                                foreach($nakshatramOptions as $option): ?>
+                                <label class="dropdown-item">
+                                    <input type="checkbox" name="nakshatram[]" value="<?php echo htmlspecialchars($option); ?>" <?php echo in_array($option, $selectedNakshatram) ? 'checked' : ''; ?>>
+                                    <?php echo htmlspecialchars($option); ?>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if (!isCustomerRole()): ?>
                     <div class="col-md-4">
                         <label for="city" class="form-label">வசிக்கும் ஊர்</label>
                         <input type="text" class="form-control" id="city" name="city" 
@@ -620,6 +649,7 @@ $districtsMap = [
                                    placeholder="வரை">
                         </div>
                     </div>
+                    <?php endif; ?>
 
 <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
                     <div class="col-md-4">
@@ -727,7 +757,10 @@ $districtsMap = [
                         <td><?php echo htmlspecialchars($profile['education_type'] ?? ''); ?></td>
                         <td><?php echo htmlspecialchars($profile['city']); ?></td>
                         <td>
-                            <a href="view.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-info">பார்</a>
+                            <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer'])): ?>
+                                <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">பார் (No Phone PDF)</a>
+                            <?php endif; ?>
+                            <a href="view.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-info">பார் (View Phone)</a>
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
                                 <a href="edit.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-warning">திருத்து</a>
                             <?php endif; ?>
@@ -740,9 +773,6 @@ $districtsMap = [
                                     <input type="hidden" name="id" value="<?php echo $profile['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-danger">அழி</button>
                                 </form>
-                            <?php endif; ?>
-                            <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer'])): ?>
-                                <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">No Phone PDF</a>
                             <?php endif; ?>
                         </td>
                     </tr>

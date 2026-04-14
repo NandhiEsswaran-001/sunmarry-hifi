@@ -70,8 +70,8 @@ $districtsMap = [
     'Chengalpattu' => 'செங்கல்பட்டு',
     'Mayiladuthurai' => 'மயிலாடுதுறை',
     'Ranipet' => 'ராணிப்பேட்டை',
-    'Tenkasi' => 'தென்கசி',
-    'Tirupathur' => 'திருப்பதூர்',
+    'Tenkasi' => 'தென்காசி',
+    'Tirupathur' => 'திருப்பத்தூர்',
     'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
@@ -175,6 +175,7 @@ body { font-weight: 600; }
 /* Header */
 .header { text-align: center; margin-bottom: 6px; border-bottom: 2px solid #333; padding-bottom: 6px; }
 .header p { margin: 0; font-size: 18px; }
+.company-name { font-size: 28px; font-weight: bold; margin: 0 0 5px 0; }
 
 /* Main content area */
 .profile-container {
@@ -373,7 +374,7 @@ body { font-weight: 600; }
 
 <div class="print-layout">
     <div class="header">
-        
+        <h2 class="company-name">Sun Matrimony</h2>
         <p>Profile ID: <strong><?php echo htmlspecialchars($profile['id']); ?></strong></p>
     </div>
 
@@ -450,8 +451,8 @@ body { font-weight: 600; }
                 ?></td></tr>
                 <tr><th>குலம் (கோத்திரம்):</th><td><?php echo htmlspecialchars($profile['kulam']); ?></td></tr>
 
-                <tr><th>தொழில்:</th><td><?php echo htmlspecialchars($profile['profession']); ?></td></tr>
-                <tr><th>மாவட்டம்:</th><td>
+                <tr><th>வேலை:</th><td><?php echo htmlspecialchars($profile['profession']); ?></td></tr>
+                <tr><th>வசிக்கும் மாவட்டம்:</th><td>
 <?php
     $districtEn = $profile['district'];
     $districtTa = '';
@@ -489,7 +490,7 @@ body { font-weight: 600; }
         <?php endif; ?>
     </div>
 
-    <div class="footer">Printed on <?php echo date('d F Y'); ?> — Sun Matrimony / Hifive web design +91 63744 97528</div>
+    <div class="footer">Printed on <?php echo date('d F Y'); ?> — Made by Hifive web design</div>
 </div>
 
 </body>

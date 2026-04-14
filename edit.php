@@ -143,6 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kulam = trim($_POST['kulam'] ?? '');
     $nakshatram = $_POST['nakshatram'] ?? '';
     $rasi = $_POST['rasi'] ?? '';
+    $dosham = $_POST['dosham'] ?? '';
     $religion = $_POST['religion'] ?? '';
     $education = $_POST['education_select'] ?? '';
     $education_text = trim($_POST['education_text'] ?? '');
@@ -183,12 +184,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (getUserRole() === 'manager') {
         $phone1 = $profile['phone_primary'] ?? '';
         $phone2 = $profile['phone_secondary'] ?? '';
-        $phone3 = $profile['phone_tertiary'] ?? '';
     } else {
         $phone1 = trim($_POST['phone1'] ?? '');
         $phone2 = trim($_POST['phone2'] ?? '');
-        $phone3 = trim($_POST['phone3'] ?? '');
     }
+    // குறிப்பு (phone3) is editable by all roles
+    $phone3 = trim($_POST['phone3'] ?? '');
 
     // Handle file uploads
     $profile_photo = $_FILES['profile_photo'] ?? null;
@@ -278,7 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare(
             "UPDATE profiles
                         SET name = ?, age = ?, marriage_type = ?, gender = ?,
-                            district = ?, city = ?, birth_place = ?, birth_date = ?, birth_time = ?, caste = ?, kulam = ?, nakshatram = ?, rasi = ?, religion = ?, education_type = ?, education_details = ?, brothers_total = ?, brothers_married = ?, sisters_total = ?, sisters_married = ?, profession = ?, phone_primary = ?, phone_secondary = ?, phone_tertiary = ?, notes = ?, profile_photo = ?, file_upload = ?
+                            district = ?, city = ?, birth_place = ?, birth_date = ?, birth_time = ?, caste = ?, kulam = ?, nakshatram = ?, rasi = ?, dosham = ?, religion = ?, education_type = ?, education_details = ?, brothers_total = ?, brothers_married = ?, sisters_total = ?, sisters_married = ?, profession = ?, phone_primary = ?, phone_secondary = ?, phone_tertiary = ?, notes = ?, profile_photo = ?, file_upload = ?
                 WHERE id = ?"
         );
 
@@ -296,6 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $kulam,
                 $nakshatram,
                 $rasi,
+                $dosham,
                 $religion,
                 $education,
                 $education_text,
@@ -368,8 +370,8 @@ $districtsMap = [
     'Chengalpattu' => 'செங்கல்பட்டு',
     'Mayiladuthurai' => 'மயிலாடுதுறை',
     'Ranipet' => 'ராணிப்பேட்டை',
-    'Tenkasi' => 'தென்கசி',
-    'Tirupathur' => 'திருப்பதூர்',
+    'Tenkasi' => 'தென்காசி',
+    'Tirupathur' => 'திருப்பத்தூர்',
     'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
@@ -597,10 +599,11 @@ $districtsMap = [
                     <select class="form-select" id="education_select" name="education_select">
                         <option value="">-- தேர்வு செய்க --</option>
                         <?php
-                        $educations = ['10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ','இளங்கலை (UG)','முதுகலை (PG)'];
+                        $educations = ['10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ','UG/PG'];
                         foreach ($educations as $e) {
+                            $label = $e === 'UG/PG' ? 'இளங்கலை (UG) / முதுகலை (PG)' : $e;
                             $sel = ($profile['education_type'] === $e) ? 'selected' : '';
-                            echo "<option value=\"".htmlspecialchars($e)."\" $sel>".htmlspecialchars($e)."</option>";
+                            echo "<option value=\"".htmlspecialchars($e)."\" $sel>".htmlspecialchars($label)."</option>";
                         }
                         ?>
                     </select>
@@ -614,7 +617,7 @@ $districtsMap = [
 
                 <!-- 15. Profession and 16-17. District & City -->
                 <div class="col-md-6 mb-3">
-                    <label for="profession" class="form-label">தொழில் (Profession)</label>
+                    <label for="profession" class="form-label">வேலை (Profession)</label>
                     <input type="text" class="form-control" id="profession" name="profession" value="<?php echo htmlspecialchars($profile['profession'] ?? ''); ?>" placeholder="உதா: ஆசிரியர், பொறியாளர்">
                 </div>
                 <div class="col-md-6 mb-3">
@@ -650,22 +653,22 @@ $districtsMap = [
                                 <?php endfor; ?>
                             </select>
                         </div>
+                        <div class="col-md-3">
+                            <label for="phone3" class="form-label">குறிப்பு</label>
+                            <input type="text" class="form-control" id="phone3" name="phone3" value="<?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?>" maxlength="30">
+                        </div>
                     </div>
                 </div>
 
                 <!-- 22-24. Phones -->
                 <?php if (getUserRole() !== 'manager'): ?>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-6 mb-3">
                     <label for="phone1" class="form-label">தொலைபேசி 1</label>
                     <input type="tel" class="form-control" id="phone1" name="phone1" value="<?php echo htmlspecialchars($profile['phone_primary'] ?? ''); ?>" maxlength="10">
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-6 mb-3">
                     <label for="phone2" class="form-label">தொலைபேசி 2</label>
                     <input type="tel" class="form-control" id="phone2" name="phone2" value="<?php echo htmlspecialchars($profile['phone_secondary'] ?? ''); ?>" maxlength="10">
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label for="phone3" class="form-label">குறிப்பு</label>
-                    <input type="text" class="form-control" id="phone3" name="phone3" value="<?php echo htmlspecialchars($profile['phone_tertiary'] ?? ''); ?>" maxlength="30">
                 </div>
                 <?php endif; ?>
 

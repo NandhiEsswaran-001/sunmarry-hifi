@@ -66,8 +66,8 @@ $districtsMap = [
     'Chengalpattu' => 'செங்கல்பட்டு',
     'Mayiladuthurai' => 'மயிலாடுதுறை',
     'Ranipet' => 'ராணிப்பேட்டை',
-    'Tenkasi' => 'தென்கசி',
-    'Tirupathur' => 'திருப்பதூர்',
+    'Tenkasi' => 'தென்காசி',
+    'Tirupathur' => 'திருப்பத்தூர்',
     'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
@@ -163,23 +163,25 @@ $districtsMap = [
                                         <td><?php echo htmlspecialchars($profile['kulam'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>படிப்பு:</th>
-                                        <td><?php echo htmlspecialchars($profile['education_type'] ?? ''); ?></td>
-                                    </tr>
-                                    <tr>
                                         <th>படிப்பு பிரிவு:</th>
-                                        <td><?php echo htmlspecialchars($profile['education_details'] ?? ''); ?></td>
+                                        <td><?php 
+                                            $educationType = trim($profile['education_type'] ?? '');
+                                            $educationDetails = trim($profile['education_details'] ?? '');
+                                            if ($educationType === '' && $educationDetails === '') {
+                                                echo '';
+                                            } elseif ($educationType !== '' && $educationDetails !== '') {
+                                                echo htmlspecialchars($educationType . ' (' . $educationDetails . ')');
+                                            } else {
+                                                echo htmlspecialchars($educationType !== '' ? $educationType : $educationDetails);
+                                            }
+                                        ?></td>
                                     </tr>
                                     <tr>
-                                        <th>குறிப்பு விவரங்கள்:</th>
-                                        <td><?php echo nl2br(htmlspecialchars($profile['notes'] ?? '')); ?></td>
-                                    </tr>
-                                    <tr>
-                                        <th>தொழில்:</th>
+                                        <th>வேலை:</th>
                                         <td><?php echo htmlspecialchars($profile['profession'] ?? ''); ?></td>
                                     </tr>
                                     <tr>
-                                        <th>மாவட்டம்:</th>
+                                        <th>வசிக்கும் மாவட்டம்:</th>
                                         <td><?php echo htmlspecialchars($districtsMap[$profile['district']] ?? $profile['district']); ?></td>
                                     </tr>
                                     <tr>

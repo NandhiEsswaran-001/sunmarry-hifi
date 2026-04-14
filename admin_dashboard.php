@@ -101,7 +101,7 @@ if ($searchPhone !== '') {
     $sql .= " AND phone LIKE :search_phone";
     $params[':search_phone'] = "%$searchPhone%";
 }
-$sql .= " ORDER BY role, username";
+$sql .= " ORDER BY FIELD(role, 'admin', 'manager', 'special_customer', 'customer', 'support'), created_at DESC";
 
 // Get all admin users except super admin, with search
 if (!empty($params)) {

@@ -6,23 +6,16 @@ requireLogin();
 if (getUserRole() === null || (!in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer']))) {
     header('Location: access_denied.php');
     exit();
-}$id = $_GET['id'] ?? null;
+}
+$id = $_GET['id'] ?? null;
 if (!$id) {
     header('Location: profiles.php');
     exit();
 }
 
-// Charge a credit for No Phone PDF if applicable
-$allowed = incrementProfileViews();
-if ($allowed === false) {
-    echo "<!doctype html><html><head><meta charset=\"utf-8\"><title>Limit Exceeded</title>\n<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\"></head><body class=\"bg-light\">";
-    echo "<div class='container mt-4'><div class='alert alert-danger'>Limit Exceeded</div><a href='profiles.php' class='btn btn-primary'>Back</a></div>";
-    echo "</body></html>";
-    exit();
-}
-
+$pdo = getDB();
 $stmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ?");
-$stmt->execute([$id]);
+$stmt->execute(array($id));
 $profile = $stmt->fetch();
 
 if (!$profile) {
@@ -68,8 +61,8 @@ $districtsMap = [
     'Chengalpattu' => 'செங்கல்பட்டு',
     'Mayiladuthurai' => 'மயிலாடுதுறை',
     'Ranipet' => 'ராணிப்பேட்டை',
-    'Tenkasi' => 'தென்கசி',
-    'Tirupathur' => 'திருப்பதூர்',
+    'Tenkasi' => 'தென்காசி',
+    'Tirupathur' => 'திருப்பத்தூர்',
     'Pondicherry' => 'புதுச்சேரி'
 ];
 ?>
@@ -172,6 +165,7 @@ body { font-weight: 600; }
 /* Header */
 .header { text-align: center; margin-bottom: 6px; border-bottom: 2px solid #333; padding-bottom: 6px; }
 .header p { margin: 0; font-size: 18px; }
+.company-name { font-size: 28px; font-weight: bold; margin: 0 0 5px 0; }
 
 /* Main content area */
 .profile-container {
@@ -355,6 +349,7 @@ body { font-weight: 600; }
 
 <div class="print-layout">
     <div class="header">
+        <h2 class="company-name">Sun Matrimony</h2>
         <p>Profile ID: <strong><?php echo htmlspecialchars($profile['id']); ?></strong></p>
     </div>
 
@@ -431,8 +426,9 @@ body { font-weight: 600; }
                     echo htmlspecialchars($casteDisplay);
                 ?></td></tr>
                 <tr><th>குலம் (கோத்திரம்):</th><td><?php echo htmlspecialchars($profile['kulam']); ?></td></tr>
-                <tr><th>தொழில்:</th><td><?php echo htmlspecialchars($profile['profession']); ?></td></tr>
-                <tr><th>மாவட்டம்:</th><td>
+                <tr><th>வேலை:</th><td><?php echo htmlspecialchars($profile['profession']); ?></td></tr>
+                <tr><th>குறிப்பு :</th><td><?php echo htmlspecialchars(mb_substr($profile['phone_tertiary'] ?? '', 0, 30)); ?></td></tr>
+                <tr><th>வசிக்கும் மாவட்டம்:</th><td>
 <?php
     $districtEn = $profile['district'];
     $districtTa = '';
@@ -470,7 +466,7 @@ body { font-weight: 600; }
         <?php endif; ?>
     </div>
 
-    <div class="footer">Printed on <?php echo date('d F Y'); ?> — Sun Matrimony / Hifive web design +91 63744 97528</div>
+    <div class="footer">Printed on <?php echo date('d F Y'); ?> — Made by Hifive web design</div>
 </div>
 
 </body>
