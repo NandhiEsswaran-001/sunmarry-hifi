@@ -2,8 +2,36 @@
 require_once 'db.php';
 require_once 'auth.php';
 
+try {
+    ensureRegistrationRequestsTable($pdo);
+} catch (PDOException $e) {
+    // Keep dashboard usable even if the requests table cannot be created yet.
+}
+
 // Ensure only super admin can access
 checkPermission('super_admin');
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_registration_reviewed') {
+    $requestId = isset($_POST['request_id']) ? (int)$_POST['request_id'] : 0;
+    if ($requestId > 0) {
+        $stmt = $pdo->prepare("UPDATE registration_requests SET status = 'reviewed' WHERE id = ?");
+        $stmt->execute([$requestId]);
+    }
+
+    header('Location: admin_dashboard.php#registration-requests');
+    exit();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_registration_request') {
+    $requestId = isset($_POST['request_id']) ? (int)$_POST['request_id'] : 0;
+    if ($requestId > 0) {
+        $stmt = $pdo->prepare("DELETE FROM registration_requests WHERE id = ?");
+        $stmt->execute([$requestId]);
+    }
+
+    header('Location: admin_dashboard.php#registration-requests');
+    exit();
+}
 
 // Get statistics
 $stats = [
@@ -11,7 +39,9 @@ $stats = [
     'total_admins' => $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn(),
     'total_managers' => $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'manager'")->fetchColumn(),
     'total_customer' => $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('customer','special_customer','support')")->fetchColumn(),
-    'active_profiles' => $pdo->query("SELECT COUNT(*) FROM profiles WHERE deleted_at IS NULL")->fetchColumn()
+    'active_profiles' => $pdo->query("SELECT COUNT(*) FROM profiles WHERE deleted_at IS NULL")->fetchColumn(),
+    'registration_requests' => $pdo->query("SELECT COUNT(*) FROM registration_requests")->fetchColumn(),
+    'new_registration_requests' => $pdo->query("SELECT COUNT(*) FROM registration_requests WHERE status = 'new'")->fetchColumn()
 ];
 
 // Check which columns exist in the users table
@@ -112,6 +142,12 @@ if (!empty($params)) {
     $stmt = $pdo->query($sql);
     $users = $stmt->fetchAll();
 }
+
+$registrationRequests = $pdo->query(
+    "SELECT id, name, phone, alternate_phone, marriage_type, caste, birth_date, city, education, status, created_at
+     FROM registration_requests
+     ORDER BY created_at DESC, id DESC"
+)->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="ta">
@@ -130,6 +166,15 @@ if (!empty($params)) {
             <div class="col-md-12">
                 <h2 class="mb-4"><?php echo (getUserRole() === 'admin') ? 'Admin Dashboard' : 'Super Admin Dashboard'; ?></h2>
                 
+                <?php if ((int)$stats['new_registration_requests'] > 0): ?>
+                    <div class="alert alert-warning d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <strong>Reminder:</strong>
+                            You have <?php echo (int)$stats['new_registration_requests']; ?> new registration request<?php echo ((int)$stats['new_registration_requests'] === 1) ? '' : 's'; ?> waiting for review.
+                        </div>
+                        <a href="#registration-requests" class="btn btn-dark btn-sm">View Requests</a>
+                    </div>
+                <?php endif; ?>
 
                 <!-- Statistics Cards -->
 <div class="row g-3 mb-4">
@@ -173,6 +218,15 @@ if (!empty($params)) {
                             </div>
                         </div>
                     </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Registrations</h5>
+                                <h2><?php echo $stats['registration_requests']; ?></h2>
+                                <small>New: <?php echo (int)$stats['new_registration_requests']; ?></small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Search Form -->
@@ -189,32 +243,33 @@ if (!empty($params)) {
                     </div>
                 </form>
 
-                <!-- User Management -->
+<!-- User Management -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">User Management</h5>
-                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
                             Add New User
                         </button>
                     </div>
-                    <div class="card-body">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Username</th>
-                                    <th>Role</th>
-                                    <?php if ($hasCreatedAtCol): ?><th>Created Date</th><?php endif; ?>
-                                    <th>Last Login</th>
-                                    <?php if ($hasProfilesViewedCol): ?><th>Profiles Viewed</th><?php endif; ?>
-                                    <th>Mobile Number</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($users as $user): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($user['username']); ?></td>
-                                    <td><span class="badge bg-<?php echo $user['role'] === 'manager' ? 'info' : ($user['role'] === 'admin' ? 'dark' : ($user['role'] === 'special_customer' ? 'secondary' : 'warning')); ?>">
+                    <div class="card-body p-0">
+                        <div class="table-responsive d-none d-md-block">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Role</th>
+                                        <?php if ($hasCreatedAtCol): ?><th>Created Date</th><?php endif; ?>
+                                        <th>Last Login</th>
+                                        <?php if ($hasProfilesViewedCol): ?><th>Profiles Viewed</th><?php endif; ?>
+                                        <th>Mobile Number</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($users as $user): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($user['username']); ?></td>
+                                        <td><span class="badge bg-<?php echo $user['role'] === 'manager' ? 'info' : ($user['role'] === 'admin' ? 'dark' : ($user['role'] === 'special_customer' ? 'secondary' : 'warning')); ?>">
                                         <?php
                                             $roleLabel = $user['role'];
                                             if ($user['role'] === 'special_customer') $roleLabel = 'Special Customer';
@@ -222,8 +277,8 @@ if (!empty($params)) {
                                             echo htmlspecialchars($roleLabel);
                                         ?>
                                     </span></td>
-                                    <?php if ($hasCreatedAtCol): ?><td><?php echo $user['created_at'] ? date('Y-m-d H:i', strtotime($user['created_at'])) : 'N/A'; ?></td><?php endif; ?>
-                                    <td><?php echo $user['last_login'] ? date('Y-m-d H:i', strtotime($user['last_login'])) : 'Never'; ?></td>
+                                    <?php if ($hasCreatedAtCol): ?><td><?php echo $user['created_at'] ? date('Y-m-d', strtotime($user['created_at'])) : 'N/A'; ?></td><?php endif; ?>
+                                    <td><?php echo $user['last_login'] ? date('Y-m-d', strtotime($user['last_login'])) : 'Never'; ?></td>
                                     <?php if ($hasProfilesViewedCol): ?><td><?php echo $user['profiles_viewed'] ?? '0'; ?></td><?php endif; ?>
                                     <td><?php echo !empty($user['phone']) ? htmlspecialchars($user['phone']) : '-'; ?></td>
                                     <td>
@@ -231,7 +286,7 @@ if (!empty($params)) {
                                             Edit
                                         </button>
                                         <button class="btn btn-sm btn-warning" onclick="resetPassword(<?php echo $user['id']; ?>)">
-                                            Reset Password
+                                            Reset
                                         </button>
                                         <button class="btn btn-sm btn-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
                                             Delete
@@ -241,6 +296,130 @@ if (!empty($params)) {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        </div>
+                        <div class="d-md-none">
+                            <?php foreach ($users as $user): ?>
+                            <div class="border-bottom p-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong><?php echo htmlspecialchars($user['username']); ?></strong>
+                                    <span class="badge bg-<?php echo ($user['role'] === 'manager' ? 'info' : ($user['role'] === 'admin' ? 'dark' : ($user['role'] === 'special_customer' ? 'secondary' : 'warning'))); ?>">
+                                        <?php echo ($user['role'] === 'special_customer' ? 'Special' : ($user['role'] === 'support' ? 'Customer' : ucfirst($user['role']))); ?>
+                                    </span>
+                                </div>
+                                <div class="small text-muted mb-2">
+                                    <div><?php if ($hasCreatedAtCol): ?><span class="me-2">Created: <?php echo $user['created_at'] ? date('d-m-y', strtotime($user['created_at'])) : '-'; ?></span><?php endif; ?><span class="me-2">Login: <?php echo $user['last_login'] ? date('d-m-y', strtotime($user['last_login'])) : '-'; ?></span><?php if ($hasProfilesViewedCol): ?> Profiles: <?php echo $user['profiles_viewed'] ?? '0'; ?><?php endif; ?></div>
+                                    <div>Mobile: <?php echo !empty($user['phone']) ? htmlspecialchars($user['phone']) : '-'; ?></div>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-info" onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['phone'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['note'] ?? '', ENT_QUOTES); ?>')">Edit</button>
+                                    <button class="btn btn-warning" onclick="resetPassword(<?php echo $user['id']; ?>)">Reset</button>
+                                    <button class="btn btn-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">Delete</button>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+
+<div class="card mt-4" id="registration-requests">
+                    <div class="card-header">
+                        <h5 class="mb-0">New Registration Requests</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <?php if (empty($registrationRequests)): ?>
+                            <p class="text-muted mb-0">No registration requests yet.</p>
+                        <?php else: ?>
+                        <div class="table-responsive d-none d-md-block">
+                                <table class="table table-sm table-striped align-middle mb-0" style="font-size: 0.85rem;">
+                                    <thead>
+                                        <tr class="table-dark">
+                                            <th style="width: 100px;">Name</th>
+                                            <th style="width: 90px;">Phone</th>
+                                            <th style="width: 90px;">Alt Phone</th>
+                                            <th style="width: 90px;">Marriage</th>
+                                            <th style="max-width: 120px;">Caste</th>
+                                            <th style="width: 90px;">DOB</th>
+                                            <th style="width: 80px;">City</th>
+                                            <th style="max-width: 100px;">Education</th>
+                                            <th style="width: 70px;">Status</th>
+                                            <th style="width: 110px;">Submitted</th>
+                                            <th style="width: 70px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($registrationRequests as $request): ?>
+                                            <tr>
+                                                <td class="text-truncate" style="max-width: 100px;" title="<?php echo htmlspecialchars($request['name']); ?>"><?php echo htmlspecialchars($request['name']); ?></td>
+                                                <td><?php echo htmlspecialchars($request['phone']); ?></td>
+                                                <td><?php echo $request['alternate_phone'] ? htmlspecialchars($request['alternate_phone']) : '-'; ?></td>
+                                                <td><?php echo htmlspecialchars($request['marriage_type']); ?></td>
+                                                <td class="text-truncate" style="max-width: 120px;" title="<?php echo htmlspecialchars($request['caste']); ?>"><?php echo htmlspecialchars($request['caste']); ?></td>
+                                                <td><?php echo htmlspecialchars(date('d-m-Y', strtotime($request['birth_date']))); ?></td>
+                                                <td><?php echo htmlspecialchars($request['city']); ?></td>
+                                                <td class="text-truncate" style="max-width: 100px;" title="<?php echo htmlspecialchars($request['education']); ?>"><?php echo htmlspecialchars($request['education']); ?></td>
+                                                <td>
+                                                    <span class="badge bg-<?php echo $request['status'] === 'new' ? 'warning text-dark' : 'success'; ?>">
+                                                        <?php echo htmlspecialchars(ucfirst($request['status'])); ?>
+                                                    </span>
+                                                </td>
+                                                <td><?php echo htmlspecialchars(date('d-m H:i', strtotime($request['created_at']))); ?></td>
+                                                <td>
+                                                    <?php if ($request['status'] === 'new'): ?>
+                                                        <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0">
+                                                            <input type="hidden" name="action" value="mark_registration_reviewed">
+                                                            <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-success py-0 px-1">Done</button>
+                                                        </form>
+                                                    <?php else: ?>
+                                                        <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0" onsubmit="return confirm('Delete this request?');">
+                                                            <input type="hidden" name="action" value="delete_registration_request">
+                                                            <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-danger py-0 px-1">✕</button>
+                                                        </form>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                        </div>
+                        <div class="d-md-none">
+                            <?php foreach ($registrationRequests as $request): ?>
+                            <div class="border-bottom p-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong><?php echo htmlspecialchars($request['name']); ?></strong>
+                                    <span class="badge bg-<?php echo $request['status'] === 'new' ? 'warning text-dark' : 'success'; ?>">
+                                        <?php echo htmlspecialchars(ucfirst($request['status'])); ?>
+                                    </span>
+                                </div>
+                                <div class="small text-muted mb-2">
+                                    <div>Phone: <?php echo htmlspecialchars($request['phone']); ?></div>
+                                    <div>Alt: <?php echo $request['alternate_phone'] ? htmlspecialchars($request['alternate_phone']) : '-'; ?></div>
+                                    <div>Marriage: <?php echo htmlspecialchars($request['marriage_type']); ?></div>
+                                    <div>Caste: <?php echo htmlspecialchars($request['caste']); ?></div>
+                                    <div>DOB: <?php echo htmlspecialchars(date('d-m-Y', strtotime($request['birth_date']))); ?></div>
+                                    <div>City: <?php echo htmlspecialchars($request['city']); ?></div>
+                                    <div>Education: <?php echo htmlspecialchars($request['education']); ?></div>
+                                    <div>Submitted: <?php echo htmlspecialchars(date('d-m H:i', strtotime($request['created_at']))); ?></div>
+                                </div>
+                                <?php if ($request['status'] === 'new'): ?>
+                                <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0">
+                                    <input type="hidden" name="action" value="mark_registration_reviewed">
+                                    <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-success">Mark Reviewed</button>
+                                </form>
+                                <?php else: ?>
+                                <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0" onsubmit="return confirm('Delete this request?');">
+                                    <input type="hidden" name="action" value="delete_registration_request">
+                                    <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
+                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                                <?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

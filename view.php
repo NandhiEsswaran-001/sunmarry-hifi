@@ -105,9 +105,7 @@ $districtsMap = [
                                         <th>திருமண வகை:</th>
                                         <td><?php 
                                             $type = $profile['marriage_type'] ?? '';
-                                            if ($type === 'First') echo 'முதல்மணம்';
-                                            elseif ($type === 'Second') echo 'இரண்டாம் திருமணம்';
-                                            else echo htmlspecialchars($type);
+                                            echo htmlspecialchars($type);
                                         ?></td>
                                     </tr>
                                     <tr>

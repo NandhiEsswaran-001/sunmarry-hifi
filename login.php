@@ -2,13 +2,19 @@
 session_start();
 require_once 'db.php';
 
+try {
+    ensureRegistrationRequestsTable($pdo);
+} catch (PDOException $e) {
+    // Keep login usable even if the registration requests table cannot be created.
+}
+
 // Ensure required user columns exist to avoid runtime errors (safe, idempotent)
 try {
     $colStmt = $pdo->query("SHOW COLUMNS FROM users");
     $cols = $colStmt->fetchAll(PDO::FETCH_ASSOC);
     $colNames = array_column($cols, 'Field');
 
-    if (!in_array('role', $colNames)) {
+    if (!in_array('role', $colNames, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('super_admin', 'admin', 'manager', 'customer', 'special_customer', 'support') NOT NULL DEFAULT 'customer'");
     } else {
         foreach ($cols as $c) {
@@ -18,103 +24,171 @@ try {
             }
         }
     }
-    if (!in_array('profiles_viewed', $colNames)) {
+    if (!in_array('profiles_viewed', $colNames, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN profiles_viewed INT DEFAULT 0");
     }
-    if (!in_array('last_login', $colNames)) {
+    if (!in_array('last_login', $colNames, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN last_login DATETIME DEFAULT NULL");
     }
 } catch (PDOException $e) {
-    // If schema modifications fail (permissions, missing table), continue without breaking login flow.
-    // We intentionally do not expose detailed DB errors to the user here.
+    // Continue without exposing DB details to the user.
 }
 
 $error = '';
+$registrationError = '';
+$registrationSuccess = '';
+$showRegistrationForm = false;
+$registerData = [
+    'name' => '',
+    'phone' => '',
+    'alternate_phone' => '',
+    'marriage_type' => '',
+    'caste' => '',
+    'birth_date' => '',
+    'city' => '',
+    'education' => ''
+];
 
 if (isset($_GET['error']) && $_GET['error'] === 'credits_expired') {
-    $error = "நீங்கள் உங்கள் அனைத்து பாயிண்ட் -ஐயும் பயன்படுத்திவிட்டீர்கள். மேலாளரைத் தொடர்பு கொள்ளவும்.";
+    $error = "Your credits are completed. Please contact the administrator.";
 }
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = trim($_POST['password'] ?? '');
+    $action = $_POST['action'] ?? 'login';
 
-    if ($username && $password) {
-        // Prepare and execute query
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
-        $stmt->execute([$username]);
-        $user = $stmt->fetch();
+    if ($action === 'register_request') {
+        $showRegistrationForm = true;
+        foreach (array_keys($registerData) as $field) {
+            $registerData[$field] = trim((string)($_POST[$field] ?? ''));
+        }
 
-        if ($user) {
-            // Support secure password_hash() values and fall back to legacy md5() hashes.
-            $storedHash = $user['password'] ?? '';
-            $passwordOk = false;
+        $requiredFields = [
+            'name' => 'Name',
+            'phone' => 'Phone number',
+            'marriage_type' => 'திருமண வகை',
+            'caste' => 'Caste',
+            'birth_date' => 'Date of birth',
+            'city' => 'City',
+            'education' => 'Education'
+        ];
 
-            // If stored is a password_hash value, use password_verify()
-            if ($storedHash && (password_verify($password, $storedHash))) {
-                $passwordOk = true;
-            } elseif ($storedHash === md5($password)) {
-                // Legacy MD5 match: accept login but upgrade hash to password_hash()
-                $passwordOk = true;
-                try {
-                    $newHash = password_hash($password, PASSWORD_DEFAULT);
-                    $rehashStmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-                    $rehashStmt->execute([$newHash, $user['id']]);
-                } catch (PDOException $e) {
-                    // If rehash fails, continue login anyway; do not expose DB errors to user.
+        foreach ($requiredFields as $field => $label) {
+            if ($registerData[$field] === '') {
+                $registrationError = $label . ' is required.';
+                break;
+            }
+        }
+
+        if ($registrationError === '' && !preg_match('/^\d{10}$/', $registerData['phone'])) {
+            $registrationError = 'Phone number must be exactly 10 digits.';
+        }
+
+        if ($registrationError === '' && $registerData['alternate_phone'] !== '' && !preg_match('/^\d{10}$/', $registerData['alternate_phone'])) {
+            $registrationError = 'Alternative phone number must be exactly 10 digits.';
+        }
+
+        if ($registrationError === '' && !in_array($registerData['marriage_type'], ['முதல்மணம்', 'மறுமணம்', 'First', 'Second'], true)) {
+            $registrationError = 'Please choose a valid marriage type.';
+        }
+
+        if ($registrationError === '') {
+            $birthDate = DateTime::createFromFormat('Y-m-d', $registerData['birth_date']);
+            $today = new DateTime('today');
+            if (!$birthDate || $birthDate->format('Y-m-d') !== $registerData['birth_date']) {
+                $registrationError = 'Please choose a valid date of birth.';
+            } else {
+                $age = $today->diff($birthDate)->y;
+                if ($birthDate > $today || $age < 18 || $age > 70) {
+                    $registrationError = 'Date of birth must be between 18 and 70 years.';
                 }
             }
+        }
 
-            if ($passwordOk) {
-                // Do not reset `profiles_viewed` on login — preserve the count across sessions.
+        if ($registrationError === '') {
+            $stmt = $pdo->prepare(
+                "INSERT INTO registration_requests
+                (name, phone, alternate_phone, marriage_type, caste, birth_date, city, education)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([
+                $registerData['name'],
+                $registerData['phone'],
+                $registerData['alternate_phone'] !== '' ? $registerData['alternate_phone'] : null,
+                $registerData['marriage_type'],
+                $registerData['caste'],
+                $registerData['birth_date'],
+                $registerData['city'],
+                $registerData['education']
+            ]);
 
-                // For Super Admins require OTP verification before establishing full session
-                $dbRole = $user['role'] ?? '';
-                $appRole = ($dbRole === 'support') ? 'customer' : $dbRole;
+            $registrationSuccess = 'உங்கள் விவரங்கள் பெறப்பட்டுவிட்டது. விரைவில் நாங்கள் உங்களைத் தொடர்பு கொள்ளுவோம்.';
+            $showRegistrationForm = false;
+            foreach (array_keys($registerData) as $field) {
+                $registerData[$field] = '';
+            }
+        }
+    } else {
+        $username = trim($_POST['username'] ?? '');
+        $password = trim($_POST['password'] ?? '');
 
-if (false) { // disabled OTP for all
-                    // Store pending info and generate/send OTP
-                    $_SESSION['pending_otp_user_id'] = $user['id'];
-                    $_SESSION['pending_otp_username'] = $user['username'];
-                    // Generate and send OTP (function in auth.php)
-                    require_once 'auth.php';
-                    generate_and_send_otp_for_user($user['id']);
-                    header('Location: otp_verify.php');
+        if ($username && $password) {
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+            $stmt->execute([$username]);
+            $user = $stmt->fetch();
+
+            if ($user) {
+                $storedHash = $user['password'] ?? '';
+                $passwordOk = false;
+
+                if ($storedHash && password_verify($password, $storedHash)) {
+                    $passwordOk = true;
+                } elseif ($storedHash === md5($password)) {
+                    $passwordOk = true;
+                    try {
+                        $newHash = password_hash($password, PASSWORD_DEFAULT);
+                        $rehashStmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+                        $rehashStmt->execute([$newHash, $user['id']]);
+                    } catch (PDOException $e) {
+                        // Continue login even if rehash fails.
+                    }
+                }
+
+                if ($passwordOk) {
+                    $dbRole = $user['role'] ?? '';
+
+                    if (false) {
+                        $_SESSION['pending_otp_user_id'] = $user['id'];
+                        $_SESSION['pending_otp_username'] = $user['username'];
+                        require_once 'auth.php';
+                        generate_and_send_otp_for_user($user['id']);
+                        header('Location: otp_verify.php');
+                        exit();
+                    }
+
+                    $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                    $updateStmt->execute([$user['id']]);
+
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['role'] = $dbRole === 'support' ? 'customer' : $dbRole;
+
+                    $redirectTo = 'home.php';
+                    $role = $_SESSION['role'] ?? $dbRole ?? '';
+                    if (in_array($role, ['customer', 'special_customer'], true)) {
+                        $redirectTo = 'profiles.php';
+                    }
+
+                    header('Location: ' . $redirectTo);
                     exit();
                 }
 
-                // Non-super_admin: proceed with normal login
-                // Update last login
-                $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-                $updateStmt->execute([$user['id']]);
-
-                // Start session and store login info
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                // Normalize DB role: map legacy 'support' to app-facing 'customer'
-                if ($dbRole === 'support') {
-                    $_SESSION['role'] = 'customer';
-                } else {
-                    $_SESSION['role'] = $dbRole;
-                }
-
-                // Redirect based on role
-                $redirectTo = 'home.php';
-                $role = $_SESSION['role'] ?? $dbRole ?? '';
-                if (in_array($role, ['customer', 'special_customer'], true)) {
-                    $redirectTo = 'profiles.php';
-                }
-                header("Location: " . $redirectTo);
-                exit();
+                $error = 'Invalid password.';
             } else {
-                $error = "❌ தவறான கடவுச்சொல்.";
+                $error = 'User not found.';
             }
         } else {
-            $error = "❌ பயனர் கிடைக்கவில்லை.";
+            $error = 'Please enter both username and password.';
         }
-    } else {
-        $error = "பயனர்பெயர் மற்றும் கடவுச்சொல் இரண்டையும் உள்ளிடவும்.";
     }
 }
 ?>
@@ -134,7 +208,7 @@ if (false) { // disabled OTP for all
 
         body.login-hero {
             min-height: 100vh;
-            background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.35)), url('assets/hero.png') center/cover no-repeat fixed;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.35)), url('assets/login-hero.jpg') center/cover no-repeat fixed;
         }
 
         .marquee-bar {
@@ -142,14 +216,16 @@ if (false) { // disabled OTP for all
             color: #fff;
             padding: 8px 0;
             overflow: hidden;
-            border-bottom: 1px solid rgba(255,255,255,0.15);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
         }
+
         .marquee {
             display: inline-block;
             white-space: nowrap;
             animation: marquee 18s linear infinite;
             padding-left: 100%;
         }
+
         @keyframes marquee {
             0% { transform: translateX(0); }
             100% { transform: translateX(-100%); }
@@ -162,50 +238,215 @@ if (false) { // disabled OTP for all
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
         }
+
         .login-card .card-header {
             background: rgba(13, 110, 253, 0.75);
-            border-bottom: 1px solid rgba(255,255,255,0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
+
         .login-card .form-control {
-            background: rgba(255,255,255,0.85);
-            border: 1px solid rgba(255,255,255,0.6);
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.6);
         }
+
         .login-card .form-control:focus {
             box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
             border-color: rgba(13, 110, 253, 0.65);
         }
-</style>
-    </head>
-    <body class="login-hero">
-        <?php include 'header.php'; ?>
-        <div class="marquee-bar">
-            <div class="marquee">சன் மெட்ரிமோனி | அன்பும் நம்பிக்கையும் இணையும் இடம் | புதிய சுயவிவரம் உருவாக்கி உங்கள் வாழ்க்கை துணையைத் தேடுங்கள்</div>
-        </div>
-    <div class="container">
-        <div class="row justify-content-center mt-5">
+
+        .register-link {
+            color: #fff;
+            font-weight: 600;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .register-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .register-card .card-header {
+            background: rgba(13, 110, 253, 0.75);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .register-card .form-control,
+        .register-card .form-select {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .register-card .form-control:focus,
+        .register-card .form-select:focus {
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+            border-color: rgba(13, 110, 253, 0.65);
+        }
+    </style>
+</head>
+<body class="login-hero">
+    <?php include 'header.php'; ?>
+    <div class="marquee-bar">
+        <div class="marquee">சன் மெட்ரிமோனி | அன்பும் நம்பிக்கையும் இணையும் இடம் | புதிய சுயவிவரம் உருவாக்கி உங்கள் வாழ்க்கை துணையைத் தேடுங்கள்</div>
+    </div>
+
+    <div class="container pb-5">
+        <div class="row justify-content-center mt-5 pt-4 pb-5 mb-5">
             <div class="col-md-5">
-                <div class="card login-card">
+                <div class="card login-card <?php echo $showRegistrationForm ? 'd-none' : ''; ?>" id="loginCard">
                     <div class="card-header text-center bg-primary text-white">
                         <h4>Sun Matrimony Login</h4>
                         <h4>திருமண பதிவு உள்நுழைவு</h4>
                     </div>
                     <div class="card-body">
                         <?php if ($error): ?>
-                            <div class="alert alert-danger text-center">
-                                <?php echo htmlspecialchars($error); ?>
-                            </div>
+                            <div class="alert alert-danger text-center"><?php echo htmlspecialchars($error); ?></div>
                         <?php endif; ?>
+                        <?php if ($registrationSuccess): ?>
+                            <div class="alert alert-success text-center"><?php echo htmlspecialchars($registrationSuccess); ?></div>
+                        <?php endif; ?>
+
                         <form method="POST" action="">
+                            <input type="hidden" name="action" value="login">
                             <div class="mb-3">
-                                <label for="username" class="form-label">பயனர்பெயர்</label>
-                                <input type="text" class="form-control" id="username" name="username" placeholder="பயனர்பெயரை உள்ளிடவும்" required>
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required>
                             </div>
                             <div class="mb-3">
-                                <label for="password" class="form-label">கடவுச்சொல்</label>
-                                <input type="password" class="form-control" id="password" name="password" placeholder="கடவுச்சொல்லை உள்ளிடவும்" required>
+                                <label for="password" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
                             </div>
                             <div class="d-grid">
-                                <button type="submit" class="btn btn-primary">உள்நுழைக</button>
+                                <button type="submit" class="btn btn-primary">Login</button>
+                            </div>
+                        </form>
+
+                        <div class="text-center mt-3 text-white">
+                            <a href="#" class="register-link" id="registerToggle">New Register</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card register-card <?php echo $showRegistrationForm ? '' : 'd-none'; ?>" id="registerRequestCard">
+                    <div class="card-header text-center bg-primary text-white">
+                        <h4>Sun Matrimony Register</h4>
+                        <h4>திருமண பதிவு</h4>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($registrationError): ?>
+                            <div class="alert alert-danger"><?php echo htmlspecialchars($registrationError); ?></div>
+                        <?php endif; ?>
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="register_request">
+                            <div class="mb-3">
+                                <label for="register_name" class="form-label">பெயர்</label>
+                                <input type="text" class="form-control" id="register_name" name="name" value="<?php echo htmlspecialchars($registerData['name']); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="register_phone" class="form-label">தொலைபேசி</label>
+                                <input type="tel" class="form-control" id="register_phone" name="phone" value="<?php echo htmlspecialchars($registerData['phone']); ?>" pattern="\d{10}" maxlength="10" inputmode="numeric" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="register_alternate_phone" class="form-label">மாற்று தொலைபேசி</label>
+                                <input type="tel" class="form-control" id="register_alternate_phone" name="alternate_phone" value="<?php echo htmlspecialchars($registerData['alternate_phone']); ?>" pattern="\d{10}" maxlength="10" inputmode="numeric">
+                            </div>
+                            <div class="mb-3">
+                                <label for="register_marriage_type" class="form-label">திருமண வகை</label>
+                                <select class="form-select" id="register_marriage_type" name="marriage_type" required>
+                                    <option value="">தேர்வு செய்க</option>
+                                    <option value="முதல்மணம்" <?php echo $registerData['marriage_type'] === 'முதல்மணம்' ? 'selected' : ''; ?>>முதல்மணம்</option>
+                                    <option value="மறுமணம்" <?php echo $registerData['marriage_type'] === 'மறுமணம்' ? 'selected' : ''; ?>>மறுமணம்</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="register_caste" class="form-label">சாதி</label>
+                                <select class="form-select" id="register_caste" name="caste" required>
+                                    <option value="">-- தேர்வு செய்க --</option>
+                                    <?php
+                                    $castes = [
+                                        '24 மனை தெலுங்கு (8 வீடு)',
+                                        '24 மனை தெலுங்கு (16 வீடு)',
+                                        'கவுண்டர் (கொங்கு வள்ளாள கவுண்டர்)',
+                                        'கவுண்டர் (வேட்டுவ கவுண்டர்)',
+                                        'கவுண்டர் (குறும்ப கவுண்டர்)',
+                                        'நாயுடு (கம்மவார் நாயுடு)',
+                                        'நாயுடு (கவரா நாயுடு)',
+                                        'நாயுடு (பலிஜா நாயுடு)',
+                                        'செட்டியார் (கன்னட தேவாங்க செட்டியார்)',
+                                        'செட்டியார் (தெலுங்கு தேவாங்க செட்டியார்)',
+                                        'செட்டியார் (வாணிய செட்டியார்)',
+                                        'செட்டியார் (கொங்கு செட்டியார்)',
+                                        'செட்டியார் (சைவ செட்டியார்)',
+                                        'செட்டியார் (நாட்டுக்கோட்டை செட்டியார்)',
+                                        'செட்டியார் (ஆரிய வைசியர்)',
+                                        'செட்டியார் (ஆயிரம் வைசியர்)',
+                                        'செட்டியார் (வெள்ளஞ்செட்டியார்)',
+                                        'தேவர் (அகமுடையார்)',
+                                        'தேவர் (மறவர்)',
+                                        'தேவர் (கள்ளர்)',
+                                        'விஸ்வகர்மா (தமிழ்)',
+                                        'விஸ்வகர்மா (தெலுங்கு)',
+                                        'விஸ்வகர்மா (மலையாளம்)',
+                                        'பிராமின் (ஐயங்கார்)',
+                                        'பிராமின் (அய்யர்)',
+                                        'பிராமின் (மத்வா - கன்னட பிராமின்)',
+                                        'பிராமின் (தெலுங்கு பிராமின்)',
+                                        'பிராமின் (குருக்கள்)',
+                                        'கிறிஸ்டியன் (RC)',
+                                        'கிறிஸ்டியன் (CSI)',
+                                        'கிறிஸ்டியன் (Pentecost)',
+                                        'முஸ்லிம் (தமிழ் முஸ்லிம)',
+                                        'முஸ்லிம (உருது முஸ்லிம)',
+                                        'வன்னியர்',
+                                        'மருத்துவர்',
+                                        'நாடார்',
+                                        'முதலியார்',
+                                        'பிள்ளை',
+                                        'முத்திரையர் / முத்துராஜா / அம்பலக்காரர்',
+                                        'உடையார் / குலாலர்',
+                                        'ரெட்டியார்',
+                                        'ஒக்கலிக குருகர்',
+                                        'சௌராஷ்டிரா',
+                                        'மூப்பனார்',
+                                        'நாயர்',
+                                        'ஈழவா',
+                                        'ஜங்கம் / பண்டாரம் / வீர சைவம்',
+                                        'போயர்',
+                                        'திருவேந்திர குல வெள்ளாளர்',
+                                        'அருந்ததியர்',
+                                        'ஆதி திராவிடர்',
+                                        'நாயக்கர்',
+                                        'யாதவா / கோணார்',
+                                        'வண்ணார்',
+                                        'சேனைத் தலைவர்',
+                                        'வள்ளுவர்',
+                                        'குறவர்',
+                                        'மீனவர்'
+                                    ];
+                                    foreach ($castes as $c) {
+                                        echo "<option value=\"".htmlspecialchars($c)."\"".($registerData['caste'] === $c ? ' selected' : '').">".htmlspecialchars($c)."</option>";
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="register_birth_date" class="form-label">பிறந்த தேதி</label>
+                                <input type="date" class="form-control" id="register_birth_date" name="birth_date" value="<?php echo htmlspecialchars($registerData['birth_date']); ?>" min="<?php echo date('Y-m-d', strtotime('-70 years')); ?>" max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="register_city" class="form-label">வசிக்கும் ஊர்</label>
+                                <input type="text" class="form-control" id="register_city" name="city" value="<?php echo htmlspecialchars($registerData['city']); ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="register_education" class="form-label">படிப்பு</label>
+                                <input type="text" class="form-control" id="register_education" name="education" value="<?php echo htmlspecialchars($registerData['education']); ?>" required>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-success">சமர்ப்பி</button>
+                                <button type="button" class="btn btn-outline-light" id="cancelRegister">உள்நுழைக்குத் திரும்பு</button>
                             </div>
                         </form>
                     </div>
@@ -213,8 +454,58 @@ if (false) { // disabled OTP for all
             </div>
         </div>
     </div>
-    <footer class="text-center text-white py-2 fixed-bottom" style="background: rgba(0,0,0,0.7);">
-        <p class="mb-0 small">சன் மேட்ரிமோனி | www.sunmatri.in | +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651</p>
+
+    <footer class="text-center text-white py-2 mt-4" style="background: rgba(0,0,0,0.7);">
+        <p class="mb-0" style="font-size: 1.1rem;">
+            <a href="https://wa.me/918148653302" target="_blank" style="text-decoration:none; color:#25D366; margin-right:15px;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" width="22" height="22" style="vertical-align:middle;">
+                +91 81486 53302
+            </a>
+            <span style="display:block;">Contact: 90471 7921</span>
+            <span style="display:block; margin-top:5px;">
+                +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651
+            </span>
+        </p>
     </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggle = document.getElementById('registerToggle');
+            const loginCard = document.getElementById('loginCard');
+            const card = document.getElementById('registerRequestCard');
+            const cancel = document.getElementById('cancelRegister');
+            const phoneInputs = ['register_phone', 'register_alternate_phone']
+                .map(function (id) { return document.getElementById(id); })
+                .filter(Boolean);
+
+            function showRegisterForm(visible) {
+                if (loginCard) {
+                    loginCard.classList.toggle('d-none', visible);
+                }
+                if (card) {
+                    card.classList.toggle('d-none', !visible);
+                }
+            }
+
+            if (toggle) {
+                toggle.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    showRegisterForm(true);
+                });
+            }
+
+            if (cancel) {
+                cancel.addEventListener('click', function () {
+                    showRegisterForm(false);
+                });
+            }
+
+            phoneInputs.forEach(function (input) {
+                input.addEventListener('input', function () {
+                    this.value = this.value.replace(/\D/g, '').slice(0, 10);
+                });
+            });
+        });
+    </script>
 </body>
 </html>

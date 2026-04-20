@@ -73,8 +73,8 @@ $doshamOptions = [
 ];
 
 $educationOptions = [
-    '10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ',
-    'UG/PG'
+    '10th, 12th',
+    'Degree UG/PG'
 ];
 
 // Initialize where/params and by default exclude deleted profiles unless explicitly requested
@@ -257,11 +257,18 @@ $districtsMap = [
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>View Profiles - Marriage Profile System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="style.css" rel="stylesheet">
     <style>
+        body {
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
         .dropdown-menu {
             max-height: 300px;
             overflow-y: auto;
@@ -339,6 +346,139 @@ $districtsMap = [
             font-size: 0.875rem;
         }
 
+        /* Mobile responsive table - Card layout */
+        @media (max-width: 768px) {
+            .mobile-table-wrapper {
+                border: 0;
+                width: 100%;
+                padding: 0;
+            }
+            .mobile-table-wrapper table,
+            .mobile-table-wrapper thead,
+            .mobile-table-wrapper tbody,
+            .mobile-table-wrapper tr,
+            .mobile-table-wrapper th {
+                display: block;
+                width: 100%;
+            }
+            .mobile-table-wrapper thead {
+                display: none;
+            }
+            .mobile-table-wrapper tr {
+                margin-bottom: 15px;
+                border: 1px solid #ddd;
+                border-radius: 10px;
+                background: #fff;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                overflow: hidden;
+            }
+            .mobile-table-wrapper td {
+                display: block;
+                padding: 10px 15px;
+                border: none;
+                text-align: left;
+                background: #fff !important;
+            }
+            .mobile-table-wrapper td[data-label="படம்"] {
+                padding: 15px;
+                text-align: left;
+                background: #fff !important;
+            }
+            .mobile-table-wrapper td[data-label="படம்"] img {
+                width: 120px;
+                height: 120px;
+                border-radius: 10px;
+                object-fit: cover;
+                border: 2px solid #007bff;
+            }
+            .mobile-table-wrapper td[data-label=""] {
+                padding: 8px 15px;
+                background: #fff !important;
+            }
+            .mobile-table-wrapper td[data-label="ID"] {
+                display: inline-block;
+                width: auto;
+                padding: 5px 12px;
+                background: #fff !important;
+                border: 1px solid #ddd;
+                border-radius: 15px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .mobile-table-wrapper td[data-label="பெயர்"] {
+                font-size: 20px;
+                font-weight: 700;
+                color: #333;
+                padding: 10px 15px;
+            }
+            .mobile-table-wrapper td[data-label="வயது"],
+            .mobile-table-wrapper td[data-label="பாலினம்"] {
+                display: inline-block;
+                width: auto;
+                padding: 6px 12px;
+                background: #fff !important;
+                font-size: 14px;
+            }
+            .mobile-table-wrapper td[data-label="மாவட்டம்"],
+            .mobile-table-wrapper td[data-label="சாதி"] {
+                display: inline-block;
+                width: auto;
+                padding: 6px 12px;
+                margin-right: 8px;
+                margin-bottom: 5px;
+                background: #fff !important;
+                border: 1px solid #ddd;
+                border-radius: 15px;
+                font-size: 14px;
+            }
+            .mobile-table-wrapper td[data-label="நட்சத்திரம்"],
+            .mobile-table-wrapper td[data-label="படிப்பு வகை"] {
+                display: inline-block;
+                width: auto;
+                padding: 6px 12px;
+                margin-right: 8px;
+                margin-bottom: 5px;
+                background: #fff !important;
+                border: 1px solid #007bff;
+                border-radius: 15px;
+                font-size: 14px;
+                color: #007bff;
+            }
+            .mobile-table-wrapper td[data-label="ஊர்"],
+            .mobile-table-wrapper td[data-label="வேலை"] {
+                display: block;
+                width: 100%;
+                padding: 10px 15px;
+                border-top: 1px solid #eee;
+                background: #fff !important;
+                font-size: 14px;
+            }
+            .mobile-table-wrapper td::before {
+                display: none;
+            }
+            .mobile-table-wrapper td:has(img) {
+                text-align: left;
+            }
+            .table .btn-sm {
+                padding: 8px 12px;
+                font-size: 13px;
+                margin: 3px;
+            }
+            .mobile-actions {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                padding: 15px !important;
+                background: #fff !important;
+                border-top: 1px solid #eee;
+            }
+            .mobile-actions .btn {
+                text-align: center;
+                font-size: 12px;
+                padding: 10px 5px;
+            }
+        }
+
     </style>
 </head>
 <body class="bg-light">
@@ -372,12 +512,12 @@ $districtsMap = [
                         <label class="form-label">திருமண வகை</label>
                         <div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="marriage_type" id="first_marriage" value="First" <?php echo (empty($marriage_type) || $marriage_type === 'First') ? 'checked' : ''; ?>>
+                                <input class="form-check-input" type="radio" name="marriage_type" id="first_marriage" value="முதல்மணம்" <?php echo (empty($marriage_type) || $marriage_type === 'முதல்மணம்') ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="first_marriage">முதல்மணம்</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="marriage_type" id="second_marriage" value="Second" <?php echo $marriage_type === 'Second' ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="second_marriage">இரண்டாம் திருமணம்</label>
+                                <input class="form-check-input" type="radio" name="marriage_type" id="second_marriage" value="மறுமணம்" <?php echo $marriage_type === 'மறுமணம்' ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="second_marriage">மறுமணம்</label>
                             </div>
                         </div>
                     </div>
@@ -656,11 +796,13 @@ $districtsMap = [
                         <label for="phone" class="form-label">போன்</label>
                         <input type="text" class="form-control" id="phone" name="phone" 
                                value="<?php echo htmlspecialchars($phone); ?>" 
-                               placeholder="Search mobile...">
+                               placeholder="Search mobile..."
+                               maxlength="10" pattern="\d{10}" 
+                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)">
                     </div>
                     <?php endif; ?>
 
-                    <?php if (isCustomerRole()): ?>
+                    <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer'])): ?>
                     <div class="col-md-4">
                         <label class="form-label">ID</label>
                         <input type="number" class="form-control" id="id_search" name="id_search"
@@ -678,8 +820,7 @@ $districtsMap = [
             </div>
         </div>
         <!-- End of filter form -->
-        <?php if (!empty($_GET)): ?>
-        <div class="table-responsive">
+        <div class="mobile-table-wrapper">
             <?php
                 // Calculate displayed range for the results
                 $resultsOnPage = count($profiles);
@@ -688,11 +829,11 @@ $districtsMap = [
             ?>
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <div>
-                    <strong>Results:</strong>
+                    <strong style="font-size: 1.2rem;">மொத்த வரன்கள்:</strong>
                     <?php if ($totalRecords > 0): ?>
-                        <?php echo htmlspecialchars($startResult); ?> - <?php echo htmlspecialchars($endResult); ?> of <?php echo htmlspecialchars($totalRecords); ?>
+                        <span style="font-size: 1.2rem; font-weight:bold;"><?php echo htmlspecialchars($startResult); ?> - <?php echo htmlspecialchars($endResult); ?> of <?php echo htmlspecialchars($totalRecords); ?></span>
                     <?php else: ?>
-                        0
+                        <span style="font-size: 1.2rem; font-weight:bold;">0</span>
                     <?php endif; ?>
                 </div>
                 <div>
@@ -701,7 +842,7 @@ $districtsMap = [
             </div>
             <!-- Bulk delete form -->
             <form method="POST" action="delete.php" id="bulkDeleteForm">
-            <table class="table table-striped table-hover">
+            <table class="table table-striped table-hover" style="--bs-table-striped-bg: #fff;">
                 <thead>
                     <tr>
                         <th style="width:40px;">
@@ -733,34 +874,34 @@ $districtsMap = [
                 <tbody>
                     <?php foreach($profiles as $profile): ?>
                     <tr>
-                        <td>
+                        <td data-label="">
                             <?php if (!isCustomerRole()): ?>
                                 <input type="checkbox" class="profileCheckbox" name="ids[]" value="<?php echo $profile['id']; ?>">
                             <?php endif; ?>
                         </td>
-                        <td><?php echo htmlspecialchars($profile['id']); ?></td>
-                        <td>
+                        <td data-label="ID"><?php echo htmlspecialchars($profile['id']); ?></td>
+                        <td data-label="படம்">
                             <?php if (!empty($profile['profile_photo'])): ?>
-                                <img src="<?php echo htmlspecialchars($profile['profile_photo']); ?>" alt="Profile Photo" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
+                                <img src="<?php echo htmlspecialchars($profile['profile_photo']); ?>" alt="Profile Photo" style="width: 90px; height: 90px; object-fit: contain; border-radius: 8px; border: none;">
                             <?php else: ?>
-                                <div style="width: 50px; height: 50px; background: #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                <div style="width: 90px; height: 90px; background: #e9ecef; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 40px;">
                                     <span>👤</span>
                                 </div>
                             <?php endif; ?>
                         </td>
-                        <td><?php echo htmlspecialchars($profile['name']); ?></td>
-                        <td><?php echo htmlspecialchars($profile['age']); ?></td>
-                        <td><?php echo $profile['gender'] === 'Male' ? 'ஆண்' : 'பெண்'; ?></td>
-                        <td><?php echo htmlspecialchars($districtsMap[$profile['district']] ?? $profile['district']); ?></td>
-                        <td><?php echo htmlspecialchars(($profile['caste'] ?? '') . (!empty($profile['subcaste']) ? ' / ' . $profile['subcaste'] : '')); ?></td>
-                        <td><?php echo htmlspecialchars($profile['nakshatram'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($profile['education_type'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($profile['city']); ?></td>
-                        <td>
+                        <td data-label="பெயர்"><?php echo htmlspecialchars($profile['name']); ?></td>
+                        <td data-label="வயது"><?php echo htmlspecialchars($profile['age']); ?></td>
+                        <td data-label="பாலினம்"><?php echo $profile['gender'] === 'Male' ? 'ஆண்' : 'பெண்'; ?></td>
+                        <td data-label="மாவட்டம்"><?php echo htmlspecialchars($districtsMap[$profile['district']] ?? $profile['district']); ?></td>
+                        <td data-label="சாதி"><?php echo htmlspecialchars(($profile['caste'] ?? '') . (!empty($profile['subcaste']) ? ' / ' . $profile['subcaste'] : '')); ?></td>
+                        <td data-label="நட்சத்திரம்"><?php echo htmlspecialchars($profile['nakshatram'] ?? ''); ?></td>
+                        <td data-label="படிப்பு வகை"><?php echo htmlspecialchars($profile['education_type'] ?? ''); ?></td>
+                        <td data-label="ஊர்"><?php echo htmlspecialchars($profile['city']); ?></td>
+                        <td data-label="வேலை" class="mobile-actions">
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer'])): ?>
                                 <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">பார் (No Phone PDF)</a>
                             <?php endif; ?>
-                            <a href="view.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-info">பார் (View Phone)</a>
+                            <a href="view.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-info">பார் (Number)</a>
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
                                 <a href="edit.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-warning">திருத்து</a>
                             <?php endif; ?>
@@ -790,8 +931,8 @@ $districtsMap = [
 
         <!-- Pagination -->
         <?php if ($totalPages > 1): ?>
-        <nav aria-label="Page navigation" class="mt-4">
-            <ul class="pagination justify-content-center">
+        <nav aria-label="Page navigation" class="mt-4" style="overflow-x: auto; max-width: 100%;">
+            <ul class="pagination justify-content-center mb-0" style="flex-wrap: wrap;">
                 <?php for($i = 1; $i <= $totalPages; $i++): ?>
                     <li class="page-item <?php echo $page === $i ? 'active' : ''; ?>">
                         <a class="page-link" href="?page=<?php echo $i; ?><?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['page' => ''])) : ''; ?>">
@@ -803,7 +944,6 @@ $districtsMap = [
         </nav>
         <?php endif; ?>
         </div>
-        <?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

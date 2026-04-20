@@ -86,10 +86,12 @@ if (!$profile) {
 // Prepare existing birth date/time parts for form prefill
 $existing_birth_date = $profile['birth_date'] ?? '';
 $display_birth_date = '';
+$display_birth_date_iso = '';
 if (!empty($existing_birth_date)) {
     $d = DateTime::createFromFormat('Y-m-d', $existing_birth_date);
     if ($d) {
         $display_birth_date = $d->format('d/m/Y');
+        $display_birth_date_iso = $d->format('Y-m-d');
     }
 }
 $birth_hour_val = '';
@@ -151,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Birth date and time
     $original_birth_date = isset($_POST['birth_date']) ? trim($_POST['birth_date']) : null;
     $birth_date = isset($_POST['birth_date']) ? trim($_POST['birth_date']) : null;
+    $dateObj = null;
     if ($birth_date) {
         $dateObj = parseBirthDateInput($birth_date);
         if ($dateObj) {
@@ -173,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // For form redisplay
     $display_birth_date = $original_birth_date ?? '';
+    $display_birth_date_iso = $dateObj ? $dateObj->format('Y-m-d') : '';
 
     // Sibling fields
     $brothers_total = isset($_POST['brothers_total']) ? (int)$_POST['brothers_total'] : 0;
@@ -404,12 +408,12 @@ $districtsMap = [
                     <label class="form-label">திருமண வகை</label>
                     <div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="First" <?php echo (empty($profile['marriage_type']) || $profile['marriage_type'] === 'First') ? 'checked' : ''; ?> required>
+                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="முதல்மணம்" <?php echo (empty($profile['marriage_type']) || $profile['marriage_type'] === 'முதல்மணம்') ? 'checked' : ''; ?> required>
                             <label class="form-check-label" for="first">முதல்மணம்</label>
                         </div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="Second" <?php echo $profile['marriage_type'] === 'Second' ? 'checked' : ''; ?> required>
-                            <label class="form-check-label" for="second">இரண்டாம் திருமணம்</label>
+                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="மறுமணம்" <?php echo $profile['marriage_type'] === 'மறுமணம்' ? 'checked' : ''; ?> required>
+                            <label class="form-check-label" for="second">மறுமணம்</label>
                         </div>
                     </div>
                 </div>
@@ -438,10 +442,15 @@ $districtsMap = [
                 <!-- 4. Birth date -->
                 <div class="col-md-6 mb-3">
                     <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்)</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="birth_date" name="birth_date" value="<?php echo htmlspecialchars($display_birth_date); ?>" placeholder="Click to select date">
-                        <button class="btn btn-outline-secondary" type="button" id="date_picker_btn">📅</button>
-                    </div>
+                        <input
+                            type="date"
+                            class="form-control"
+                            id="birth_date"
+                            name="birth_date"
+                            value="<?php echo htmlspecialchars($display_birth_date_iso); ?>"
+                            min="<?php echo date('Y-m-d', strtotime('-70 years')); ?>"
+                            max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>"
+                        >
                 </div>
 
                 <!-- 5. Age -->
@@ -604,9 +613,9 @@ $districtsMap = [
                     <select class="form-select" id="education_select" name="education_select">
                         <option value="">-- தேர்வு செய்க --</option>
                         <?php
-                        $educations = ['10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ','UG/PG'];
+                        $educations = ['10th, 12th','Degree UG/PG'];
                         foreach ($educations as $e) {
-                            $label = $e === 'UG/PG' ? 'இளங்கலை (UG) / முதுகலை (PG)' : $e;
+                            $label = $e === 'Degree UG/PG' ? 'Degree UG/PG' : $e;
                             $sel = ($profile['education_type'] === $e) ? 'selected' : '';
                             echo "<option value=\"".htmlspecialchars($e)."\" $sel>".htmlspecialchars($label)."</option>";
                         }
@@ -737,87 +746,7 @@ $districtsMap = [
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Initialize datepicker immediately after libraries load -->
     <script>
-        (function() {
-            'use strict';
-
-            // Wait for DOM and libraries to be ready
-            function initializeDatepicker() {
-                if (typeof $ === 'undefined' || typeof $.fn === 'undefined' || typeof $.fn.datepicker === 'undefined') {
-                    console.log('Waiting for jQuery UI...');
-                    setTimeout(initializeDatepicker, 100);
-                    return;
-                }
-
-                // Wait for DOM to be ready
-                if (document.readyState !== 'loading') {
-                    doInitialize();
-                } else {
-                    document.addEventListener('DOMContentLoaded', doInitialize);
-                }
-
-                function doInitialize() {
-                    console.log('Initializing datepicker...');
-
-                    const birthDateInput = document.getElementById('birth_date');
-                    const datePickerBtn = document.getElementById('date_picker_btn');
-
-                    if (birthDateInput) {
-                        try {
-                            // Initialize datepicker
-                            $(birthDateInput).datepicker({
-                                dateFormat: 'dd/mm/yy',
-                                changeMonth: true,
-                                changeYear: true,
-                                yearRange: '-70:-18',
-                                maxDate: '-18y',
-                                minDate: '-70y',
-                                onSelect: function(dateText) {
-                                    console.log('Date selected:', dateText);
-                                    // Simple age calculation
-                                    const parts = dateText.split('/');
-                                    if (parts.length === 3) {
-                                        const day = parseInt(parts[0]);
-                                        const month = parseInt(parts[1]) - 1;
-                                        const year = parseInt(parts[2]);
-                                        const birthDate = new Date(year, month, day);
-                                        const today = new Date();
-                                        let age = today.getFullYear() - birthDate.getFullYear();
-                                        const m = today.getMonth() - birthDate.getMonth();
-                                        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                                            age--;
-                                        }
-                                        const ageInput = document.getElementById('age');
-                                        if (ageInput) {
-                                            ageInput.value = age;
-                                        }
-                                    }
-                                }
-                            });
-
-                            console.log('Datepicker initialized successfully');
-
-                            // Handle button click
-                            if (datePickerBtn) {
-                                datePickerBtn.addEventListener('click', function(e) {
-                                    e.preventDefault();
-                                    $(birthDateInput).datepicker('show');
-                                });
-                            }
-
-                        } catch (error) {
-                            console.error('Error initializing datepicker:', error);
-                        }
-                    } else {
-                        console.error('Birth date input not found');
-                    }
-                }
-            }
-
-            // Start initialization
-            initializeDatepicker();
-        })();
     </script>
 
     <script>
@@ -850,25 +779,33 @@ $districtsMap = [
 
             // Sibling count validation
             function validateSiblings() {
-                const brothersTotal = parseInt(document.getElementById('brothers_total').value) || 0;
-                const brothersMarried = parseInt(document.getElementById('brothers_married').value) || 0;
-                const sistersTotal = parseInt(document.getElementById('sisters_total').value) || 0;
-                const sistersMarried = parseInt(document.getElementById('sisters_married').value) || 0;
+                const brothersTotalInput = document.getElementById('brothers_total');
+                const brothersMarriedInput = document.getElementById('brothers_married');
+                const sistersTotalInput = document.getElementById('sisters_total');
+                const sistersMarriedInput = document.getElementById('sisters_married');
+
+                if (!brothersTotalInput || !brothersMarriedInput || !sistersTotalInput || !sistersMarriedInput) {
+                    return;
+                }
+
+                const brothersTotal = parseInt(brothersTotalInput.value) || 0;
+                const brothersMarried = parseInt(brothersMarriedInput.value) || 0;
+                const sistersTotal = parseInt(sistersTotalInput.value) || 0;
+                const sistersMarried = parseInt(sistersMarriedInput.value) || 0;
 
                 const brothersValid = brothersMarried <= brothersTotal;
                 const sistersValid = sistersMarried <= sistersTotal;
 
-                document.getElementById('brothers_married').setCustomValidity(
-                    brothersValid ? '' : 'Married brothers cannot exceed total brothers'
-                );
-                document.getElementById('sisters_married').setCustomValidity(
-                    sistersValid ? '' : 'Married sisters cannot exceed total sisters'
-                );
+                brothersMarriedInput.setCustomValidity(brothersValid ? '' : 'Married brothers cannot exceed total brothers');
+                sistersMarriedInput.setCustomValidity(sistersValid ? '' : 'Married sisters cannot exceed total sisters');
             }
 
             // Add sibling validation event listeners
             ['brothers_total', 'brothers_married', 'sisters_total', 'sisters_married'].forEach(id => {
-                document.getElementById(id).addEventListener('change', validateSiblings);
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('change', validateSiblings);
+                }
             });
 
             function parseBirthDate(value) {
@@ -906,7 +843,7 @@ $districtsMap = [
                 return birthDate;
             }
 
-            // Calculate age from date string (DD-MM-YYYY)
+            // Calculate age from date string
             function calculateAge(dateStr) {
                 const birthDate = parseBirthDate(dateStr);
                 if (!birthDate) return 0;
@@ -968,19 +905,18 @@ $districtsMap = [
                     }
                 }
 
-                // Only validate on blur to avoid interfering with datepicker
-                // The datepicker handles its own validation and age calculation
+                birthDateInput.addEventListener('input', validateBirthDate);
+                birthDateInput.addEventListener('change', validateBirthDate);
                 birthDateInput.addEventListener('blur', function() {
-                    // Only validate if the field is not empty and doesn't have a valid date format
                     const value = this.value.trim();
                     if (value && !parseBirthDate(value)) {
-                        this.setCustomValidity('Please enter a valid birth date in DD/MM/YYYY format.');
+                        this.setCustomValidity('Please enter a valid birth date.');
                     } else {
                         this.setCustomValidity('');
                     }
                 });
+                validateBirthDate.call(birthDateInput);
             }
-
             // File size validation
             const maxSize = <?php echo MAX_FILE_SIZE; ?>;
             function validateFileSize(input) {
@@ -1015,7 +951,7 @@ $districtsMap = [
                         form.classList.add('was-validated');
                     }, false)
                 })
-        })()
+        })();
     </script>
 </body>
 </html>

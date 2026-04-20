@@ -42,6 +42,20 @@ CREATE TABLE IF NOT EXISTS profiles (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS registration_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    alternate_phone VARCHAR(20) DEFAULT NULL,
+    marriage_type ENUM('First', 'Second') NOT NULL,
+    caste VARCHAR(255) NOT NULL,
+    birth_date DATE NOT NULL,
+    city VARCHAR(150) NOT NULL,
+    education VARCHAR(255) NOT NULL,
+    status ENUM('new', 'reviewed') NOT NULL DEFAULT 'new',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Insert default admin user
 -- Default credentials: username: admin, password: admin123
 INSERT INTO users (username, password) VALUES 

@@ -48,6 +48,8 @@ if (!function_exists('parseBirthDateInput')) {
     }
 }
 
+$birth_date_input_value = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'] ?? '';
     $age = isset($_POST['age']) ? (int)$_POST['age'] : 0;
@@ -63,12 +65,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dateObj = parseBirthDateInput($birth_date);
         if ($dateObj) {
             $birth_date = $dateObj->format('Y-m-d');
+            $birth_date_input_value = $birth_date;
             // Calculate age from birth date
             $birthDateObj = new DateTime($birth_date);
             $today = new DateTime();
             $age = $today->diff($birthDateObj)->y;
         } else {
             $birth_date = null; // invalid format
+            $birth_date_input_value = '';
             $age = 0;
         }
     } else {
@@ -329,12 +333,12 @@ $districtsMap = [
                     <label class="form-label">திருமண வகை</label>
                     <div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="First" checked>
+                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="முதல்மணம்" checked>
                             <label class="form-check-label" for="first">முதல்மணம்</label>
                         </div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="Second">
-                            <label class="form-check-label" for="second">இரண்டாம் திருமணம்</label>
+                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="மறுமணம்">
+                            <label class="form-check-label" for="second">மறுமணம்</label>
                         </div>
                     </div>
                 </div>
@@ -360,10 +364,19 @@ $districtsMap = [
                     <input type="text" class="form-control" id="name" name="name" required>
                 </div>
 
-                <!-- 4. Birth date -->
+<!-- 4. Birth date -->
                 <div class="col-md-6 mb-3">
-                    <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்)</label>
-                    <input type="text" class="form-control" id="birth_date" name="birth_date" value="<?php echo isset($original_birth_date) ? htmlspecialchars($original_birth_date) : ''; ?>">
+                    <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்) *</label>
+                        <input
+                            type="date"
+                            class="form-control"
+                            id="birth_date"
+                            name="birth_date"
+                            value="<?php echo htmlspecialchars($birth_date_input_value); ?>"
+                            min="<?php echo date('Y-m-d', strtotime('-70 years')); ?>"
+                            max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>"
+                            required
+                        >
                 </div>
 
                 <!-- 5. Age (computed) -->
@@ -455,8 +468,8 @@ $districtsMap = [
 
                 <!-- 10. Caste -->
                 <div class="col-md-6 mb-3">
-                    <label for="caste" class="form-label">சாதி பெயர் (Caste)</label>
-                    <select class="form-select" id="caste" name="caste">
+                    <label for="caste" class="form-label">சாதி பெயர் (Caste) *</label>
+                    <select class="form-select" id="caste" name="caste" required>
                         <option value="">-- தேர்வு செய்க --</option>
                         <?php
                         $castes = [
@@ -545,18 +558,18 @@ $districtsMap = [
 
                 <!-- 13. Education select -->
                 <div class="col-md-6 mb-3">
-                    <label for="education_select" class="form-label">படிப்பு(Education)</label>
-                    <select class="form-select" id="education_select" name="education_select">
+                    <label for="education_select" class="form-label">படிப்பு(Education) *</label>
+                    <select class="form-select" id="education_select" name="education_select" required>
                         <option value="">-- தேர்வு செய்க --</option>
-                        <option value="10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ">10 ஆம் வகுப்பு, 12 ஆம் வகுப்பு, ஐ.டி.ஐ, டிப்ளமோ</option>
-                        <option value="UG/PG">இளங்கலை (UG) / முதுகலை (PG)</option>
+                        <option value="10th, 12th">10th, 12th</option>
+                        <option value="Degree UG/PG">Degree UG/PG</option>
                     </select>
                 </div>
 
                 <!-- 14. Education text -->
                 <div class="col-md-6 mb-3">
-                    <label for="education_text" class="form-label">படிப்பு பிரிவு</label>
-                    <input type="text" class="form-control" id="education_text" name="education_text" placeholder="படித்த பட்டதை எழுதுக, உதா: BE, PHD">
+                    <label for="education_text" class="form-label">படிப்பு பிரிவு *</label>
+                    <input type="text" class="form-control" id="education_text" name="education_text" placeholder="படித்த பட்டதை எழுதுக, உதா: BE, PHD" required>
                 </div>
 
                 <!-- 15. Profession -->
@@ -567,8 +580,8 @@ $districtsMap = [
 
                 <!-- 16. District -->
                 <div class="col-md-4 mb-3">
-                    <label for="district" class="form-label">வசிக்கும் மாவட்டம்</label>
-                    <select class="form-select" id="district" name="district">
+                    <label for="district" class="form-label">வசிக்கும் மாவட்டம் *</label>
+                    <select class="form-select" id="district" name="district" required>
                         <option value="">மாவட்டத்தைத் தேர்வு செய்க</option>
                         <?php foreach($districtsMap as $en => $ta): ?>
                             <option value="<?php echo htmlspecialchars($en); ?>"><?php echo htmlspecialchars($ta); ?></option>
@@ -578,8 +591,8 @@ $districtsMap = [
 
                 <!-- 17. City -->
                 <div class="col-md-4 mb-3">
-                    <label for="city" class="form-label">வசிக்கும் ஊர்</label>
-                    <input type="text" class="form-control" id="city" name="city">
+                    <label for="city" class="form-label">வசிக்கும் ஊர் *</label>
+                    <input type="text" class="form-control" id="city" name="city" required>
                 </div>
 
                 <!-- 18-21. Siblings -->
@@ -743,23 +756,6 @@ $districtsMap = [
                 })
         })()
 
-        // Initialize datepicker after DOM is ready
-        $(document).ready(function() {
-            const birthDateInput = document.getElementById('birth_date');
-            if (birthDateInput) {
-                $(birthDateInput).datepicker({
-                    dateFormat: 'dd/mm/yy',
-                    changeMonth: true,
-                    changeYear: true,
-                    yearRange: '-70:-18',
-                    maxDate: '-18y',
-                    minDate: '-70y'
-                }).on('keydown', function(e) {
-                    e.preventDefault();
-                    return false;
-                });
-            }
-        });
     </script>
     <!-- Subcaste mapping removed (subcaste is no longer a separate field) -->
 </body>

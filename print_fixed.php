@@ -162,7 +162,7 @@ body { font-weight: 600; }
     max-height: 297mm;
     box-sizing: border-box;
     margin: 0 auto;
-    padding: 8mm;
+    padding: 15mm 8mm 8mm 8mm;
     background: #fff;
     display: flex;
     flex-direction: column;
@@ -294,12 +294,12 @@ body { font-weight: 600; }
     .no-print { display: none; }
     html, body { font-size: 14px; }
     body { zoom: 0.9; }
-    .print-layout { box-shadow: none; padding: 5mm; }
+    .print-layout { box-shadow: none; padding: 10mm 5mm 5mm 5mm; }
     .header { border-bottom-width: 1px; margin-bottom: 4px; padding-bottom: 4px; }
     .profile-container { gap: 8px; margin-top: 4px; }
     .right-side { font-size: 12px; }
     .right-side th, .right-side td { padding: 3px 4px; }
-    .left-side img { max-height: 80mm; }
+    .left-side img { max-height: 95mm; }
     .supporting-doc { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #bbb; }
     .supporting-doc img { max-height: 55mm; }
 }
@@ -359,9 +359,7 @@ body { font-weight: 600; }
                     <tr><th>திருமண வகை:</th><td>
                     <?php
                     $type = $profile['marriage_type'] ?? '';
-                    if ($type === 'First') echo 'முதல்மணம்';
-                    elseif ($type === 'Second') echo 'இரண்டாம் திருமணம்';
-                    else echo htmlspecialchars($type);
+                    echo htmlspecialchars($type);
                     ?>
                 </td></tr>
                 <tr><th>பெயர்:</th><td><?php echo htmlspecialchars($profile['name']); ?></td></tr>
@@ -371,6 +369,8 @@ body { font-weight: 600; }
                         echo $d ? $d->format('d-m-Y') : htmlspecialchars($profile['birth_date']);
                     }
                 ?></td></tr>
+                <tr><th>பிறந்த நேரம்:</th><td><?php echo htmlspecialchars($profile['birth_time'] ?? ''); ?></td></tr>
+                <tr><th>பிறந்த ஊர்:</th><td><?php echo htmlspecialchars($profile['birth_place'] ?? ''); ?></td></tr>
                 <tr><th>வயது:</th><td><?php
                     if (!empty($profile['birth_date'])) {
                         $birthDate = DateTime::createFromFormat('Y-m-d', $profile['birth_date']);

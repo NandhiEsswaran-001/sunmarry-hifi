@@ -11,8 +11,8 @@ $isLoginPage = basename($_SERVER['PHP_SELF'] ?? '') === 'login.php';
                     <img src="assets/SunLogoHeart.png" alt="Company Logo" class="company-logo" style="max-height: 60px;">
                 </a>
                 <div class="flex-grow-1 text-center text-white">
-                    <h2 class="mb-0 fw-bold">சன் மெட்ரிமோனி</h2>
-                    <small>திருமணம் மற்றும் திருமணத்தைக் கொண்டு</small>
+                    <h2 class="mb-0 fw-bold">சன் மேட்ரிமோனி</h2>
+                    <small>அனைத்து சமூகத்திற்கும் திருமண வரன்கள்</small>
                 </div>
                 <div style="width: 80px;"></div>
             </div>
