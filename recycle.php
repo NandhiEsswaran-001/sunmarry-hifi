@@ -4,6 +4,11 @@ requireLogin();
 
 // Handle POST actions: restore or permanent delete
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF protection
+    if (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die('Invalid request');
+    }
+    
     $action = $_POST['action'] ?? '';
     $id = $_POST['id'] ?? null;
     if ($id) {
@@ -81,11 +86,13 @@ $deleted = $stmt->fetchAll();
                             </td>
                             <td>
                                 <form method="POST" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <input type="hidden" name="id" value="<?php echo $p['id']; ?>">
                                     <input type="hidden" name="action" value="restore">
                                     <button class="btn btn-sm btn-success" onclick="return confirm('Restore this profile?');">Restore</button>
                                 </form>
                                 <form method="POST" class="d-inline ms-1">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <input type="hidden" name="id" value="<?php echo $p['id']; ?>">
                                     <input type="hidden" name="action" value="permanent">
                                     <button class="btn btn-sm btn-danger" onclick="return confirm('Permanently delete this profile? This cannot be undone.');">Delete Permanently</button>

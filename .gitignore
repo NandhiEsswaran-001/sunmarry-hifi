@@ -4,4 +4,12 @@
 /db.php
 /smtp.php
 /.env
-/.env.*
+.env.*
+/vendor/
+/node_modules/
+composer.lock
+package-lock.json
+.DS_Store
+*.log
+/access_log
+error_log

@@ -1,38 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
-
-try {
-    ensureRegistrationRequestsTable($pdo);
-} catch (PDOException $e) {
-    // Keep login usable even if the registration requests table cannot be created.
-}
-
-// Ensure required user columns exist to avoid runtime errors (safe, idempotent)
-try {
-    $colStmt = $pdo->query("SHOW COLUMNS FROM users");
-    $cols = $colStmt->fetchAll(PDO::FETCH_ASSOC);
-    $colNames = array_column($cols, 'Field');
-
-    if (!in_array('role', $colNames, true)) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('super_admin', 'admin', 'manager', 'customer', 'special_customer', 'support') NOT NULL DEFAULT 'customer'");
-    } else {
-        foreach ($cols as $c) {
-            if ($c['Field'] === 'role' && isset($c['Type']) && (strpos($c['Type'], "'admin'") === false || strpos($c['Type'], "'special_customer'") === false)) {
-                $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('super_admin', 'admin', 'manager', 'customer', 'special_customer', 'support') NOT NULL DEFAULT 'customer'");
-                break;
-            }
-        }
-    }
-    if (!in_array('profiles_viewed', $colNames, true)) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN profiles_viewed INT DEFAULT 0");
-    }
-    if (!in_array('last_login', $colNames, true)) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN last_login DATETIME DEFAULT NULL");
-    }
-} catch (PDOException $e) {
-    // Continue without exposing DB details to the user.
-}
+require_once 'rate_limit.php';
 
 $error = '';
 $registrationError = '';
@@ -53,14 +22,30 @@ if (isset($_GET['error']) && $_GET['error'] === 'credits_expired') {
     $error = "Your credits are completed. Please contact the administrator.";
 }
 
+if (!checkRateLimit('login', 5, 300)) {
+    $error = 'Too many login attempts. Please wait 5 minutes before trying again.';
+}
+
+if (!checkRateLimit('register', 3, 3600)) {
+    $registrationError = 'Too many registration requests. Please try again later.';
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'login';
 
     if ($action === 'register_request') {
         $showRegistrationForm = true;
-        foreach (array_keys($registerData) as $field) {
-            $registerData[$field] = trim((string)($_POST[$field] ?? ''));
-        }
+
+        if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $registrationError = 'Invalid request. Please try again.';
+        } else {
+            foreach (array_keys($registerData) as $field) {
+                $registerData[$field] = trim((string)($_POST[$field] ?? ''));
+            }
 
         $requiredFields = [
             'name' => 'Name',
@@ -127,43 +112,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $registerData[$field] = '';
             }
         }
-    } else {
+        }
+    } elseif ($action === 'login' && $error === '') {
         $username = trim($_POST['username'] ?? '');
         $password = trim($_POST['password'] ?? '');
 
-        if ($username && $password) {
+        if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+            $error = 'Invalid request. Please try again.';
+        } elseif ($username && $password) {
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
             if ($user) {
                 $storedHash = $user['password'] ?? '';
-                $passwordOk = false;
-
-                if ($storedHash && password_verify($password, $storedHash)) {
-                    $passwordOk = true;
-                } elseif ($storedHash === md5($password)) {
-                    $passwordOk = true;
-                    try {
-                        $newHash = password_hash($password, PASSWORD_DEFAULT);
-                        $rehashStmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-                        $rehashStmt->execute([$newHash, $user['id']]);
-                    } catch (PDOException $e) {
-                        // Continue login even if rehash fails.
-                    }
-                }
+                $passwordOk = $storedHash && password_verify($password, $storedHash);
 
                 if ($passwordOk) {
+                    session_regenerate_id(true);
                     $dbRole = $user['role'] ?? '';
-
-                    if (false) {
-                        $_SESSION['pending_otp_user_id'] = $user['id'];
-                        $_SESSION['pending_otp_username'] = $user['username'];
-                        require_once 'auth.php';
-                        generate_and_send_otp_for_user($user['id']);
-                        header('Location: otp_verify.php');
-                        exit();
-                    }
 
                     $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
                     $updateStmt->execute([$user['id']]);
@@ -172,12 +139,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['role'] = $dbRole === 'support' ? 'customer' : $dbRole;
 
-                    $redirectTo = 'home.php';
-                    $role = $_SESSION['role'] ?? $dbRole ?? '';
-                    if (in_array($role, ['customer', 'special_customer'], true)) {
-                        $redirectTo = 'profiles.php';
-                    }
-
+                    $allowedRedirects = [
+                        'super_admin' => 'admin_dashboard.php',
+                        'admin' => 'admin_dashboard.php',
+                        'manager' => 'profiles.php',
+                        'customer' => 'profiles.php',
+                        'special_customer' => 'profiles.php'
+                    ];
+                    $role = $_SESSION['role'] ?? '';
+                    $redirectTo = $allowedRedirects[$role] ?? 'home.php';
                     header('Location: ' . $redirectTo);
                     exit();
                 }
@@ -191,6 +161,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+try {
+    ensureRegistrationRequestsTable($pdo);
+} catch (PDOException $e) {
+}
 ?>
 <!DOCTYPE html>
 <html lang="ta">
@@ -199,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Marriage Profile System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         :root {
             --glass-bg: rgba(255, 255, 255, 0.16);
@@ -244,21 +220,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .login-card .form-control {
-            background: rgba(255, 255, 255, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.6);
+        .login-card label {
+            color: #fff;
+            font-weight: 500;
         }
 
-        .login-card .form-control:focus {
+        .login-card .form-control,
+        .login-card .form-select {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: #212529;
+        }
+
+        .login-card .form-control:focus,
+        .login-card .form-select:focus {
+            background: #fff;
             box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
             border-color: rgba(13, 110, 253, 0.65);
         }
 
-        .register-link {
-            color: #fff;
-            font-weight: 600;
-            text-decoration: underline;
-            cursor: pointer;
+        .login-card .form-control::placeholder {
+            color: #6c757d;
         }
 
         .register-card {
@@ -274,16 +256,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        .register-card label {
+            color: #fff;
+            font-weight: 500;
+        }
+
         .register-card .form-control,
         .register-card .form-select {
-            background: rgba(255, 255, 255, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: #212529;
         }
 
         .register-card .form-control:focus,
         .register-card .form-select:focus {
+            background: #fff;
             box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
             border-color: rgba(13, 110, 253, 0.65);
+        }
+
+        .register-card .form-control::placeholder {
+            color: #6c757d;
+        }
+
+        .whatsapp-float {
+            position: fixed;
+            width: 60px;
+            height: 60px;
+            bottom: 25px;
+            right: 25px;
+            background-color: #25D366;
+            color: #FFF;
+            border-radius: 50px;
+            text-align: center;
+            font-size: 30px;
+            line-height: 60px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+            text-decoration: none;
+            animation: whatsappPulse 2s infinite;
+        }
+        .whatsapp-float:hover {
+            background-color: #128C7E;
+            color: #FFF;
+            text-decoration: none;
+        }
+        @keyframes whatsappPulse {
+            0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(37, 211, 102, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
         }
     </style>
 </head>
@@ -298,8 +319,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-md-5">
                 <div class="card login-card <?php echo $showRegistrationForm ? 'd-none' : ''; ?>" id="loginCard">
                     <div class="card-header text-center bg-primary text-white">
-                        <h4>Sun Matrimony Login</h4>
-                        <h4>திருமண பதிவு உள்நுழைவு</h4>
+                        <h5>Sun Matrimony Login</h5>
+                        <h5>திருமண பதிவு உள்நுழைவு</h5>
                     </div>
                     <div class="card-body">
                         <?php if ($error): ?>
@@ -311,13 +332,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <form method="POST" action="">
                             <input type="hidden" name="action" value="login">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
                             <div class="mb-3">
                                 <label for="username" class="form-label">Username</label>
-                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required>
+                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required autocomplete="username">
                             </div>
                             <div class="mb-3">
                                 <label for="password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
                             </div>
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-primary">Login</button>
@@ -325,21 +347,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </form>
 
                         <div class="text-center mt-3 text-white">
-                            <a href="#" class="register-link" id="registerToggle">New Register</a>
+                            <a href="#" class="btn btn-success register-link" id="registerToggle">New User - Registration</a>
                         </div>
                     </div>
                 </div>
 
                 <div class="card register-card <?php echo $showRegistrationForm ? '' : 'd-none'; ?>" id="registerRequestCard">
                     <div class="card-header text-center bg-primary text-white">
-                        <h4>Sun Matrimony Register</h4>
-                        <h4>திருமண பதிவு</h4>
+                        <h5>Sun Matrimony Register</h5>
+                        <h5>திருமண பதிவு</h5>
                     </div>
                     <div class="card-body">
                         <?php if ($registrationError): ?>
                             <div class="alert alert-danger"><?php echo htmlspecialchars($registrationError); ?></div>
                         <?php endif; ?>
                         <form method="POST" action="">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <input type="hidden" name="action" value="register_request">
                             <div class="mb-3">
                                 <label for="register_name" class="form-label">பெயர்</label>
@@ -366,10 +389,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <select class="form-select" id="register_caste" name="caste" required>
                                     <option value="">-- தேர்வு செய்க --</option>
                                     <?php
-                                    $castes = [
+$castes = [
                                         '24 மனை தெலுங்கு (8 வீடு)',
                                         '24 மனை தெலுங்கு (16 வீடு)',
-                                        'கவுண்டர் (கொங்கு வள்ளாள கவுண்டர்)',
+                                        'கவுண்டர் (கொங்கு வெள்ளாள கவுண்டர்)',
                                         'கவுண்டர் (வேட்டுவ கவுண்டர்)',
                                         'கவுண்டர் (குறும்ப கவுண்டர்)',
                                         'நாயுடு (கம்மவார் நாயுடு)',
@@ -398,7 +421,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         'கிறிஸ்டியன் (RC)',
                                         'கிறிஸ்டியன் (CSI)',
                                         'கிறிஸ்டியன் (Pentecost)',
-                                        'முஸ்லிம் (தமிழ் முஸ்லிம)',
+                                        'முஸ்லிம்கள்',
+                                        'முஸ்லிமும் (தமிழ் முஸ்லிம)',
                                         'முஸ்லிம (உருது முஸ்லிம)',
                                         'வன்னியர்',
                                         'மருத்துவர்',
@@ -408,14 +432,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         'முத்திரையர் / முத்துராஜா / அம்பலக்காரர்',
                                         'உடையார் / குலாலர்',
                                         'ரெட்டியார்',
-                                        'ஒக்கலிக குருகர்',
+                                        'ஒக்கலிக கவுடர்',
                                         'சௌராஷ்டிரா',
                                         'மூப்பனார்',
                                         'நாயர்',
                                         'ஈழவா',
                                         'ஜங்கம் / பண்டாரம் / வீர சைவம்',
                                         'போயர்',
-                                        'திருவேந்திர குல வெள்ளாளர்',
+                                        'தேவேந்திர குல வெள்ளாளர்',
                                         'அருந்ததியர்',
                                         'ஆதி திராவிடர்',
                                         'நாயக்கர்',
@@ -446,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-success">சமர்ப்பி</button>
-                                <button type="button" class="btn btn-outline-light" id="cancelRegister">உள்நுழைக்குத் திரும்பு</button>
+                                <button type="button" class="btn btn-primary" id="cancelRegister">உள்நுழைக்குத் திரும்பு</button>
                             </div>
                         </form>
                     </div>
@@ -455,18 +479,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <footer class="text-center text-white py-2 mt-4" style="background: rgba(0,0,0,0.7);">
-        <p class="mb-0" style="font-size: 1.1rem;">
-            <a href="https://wa.me/918148653302" target="_blank" style="text-decoration:none; color:#25D366; margin-right:15px;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" width="22" height="22" style="vertical-align:middle;">
-                +91 81486 53302
-            </a>
-            <span style="display:block;">Contact: 90471 7921</span>
-            <span style="display:block; margin-top:5px;">
-                +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651
-            </span>
+    <footer class="text-center text-white py-2 mt-auto" style="background: rgba(0,0,0,0.7); position: fixed; bottom: 0; width: 100%;">
+        <p class="mb-0" style="font-size: 1.5rem;">
+            Contact: +91 90471 79211 | +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651
         </p>
     </footer>
+    <style>
+    body { min-height: 100vh; display: flex; flex-direction: column; }
+    .container { flex: 1; }
+    @media (max-width: 576px) {
+        footer p { font-size: 1.1rem !important; }
+    }
+    </style>
+
+    <a href="https://wa.me/918148653302" target="_blank" class="whatsapp-float" title="Chat on WhatsApp">
+        <i class="bi bi-whatsapp"></i>
+    </a>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {

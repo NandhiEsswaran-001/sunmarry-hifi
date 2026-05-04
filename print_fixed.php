@@ -123,13 +123,22 @@ $districtsMap = [
                 display: block;
             }
             .footer {
+                text-align: center;
+                font-size: 14px;
+                color: #888;
+                line-height: 1.6;
+                margin-bottom: 4px;
+                display: block;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            .footer-wrapper { 
                 position: absolute;
                 bottom: 10mm;
                 left: 8mm;
                 right: 8mm;
                 text-align: center;
-                font-size: 11px;
-                color: #888;
+                width: auto;
             }
             /* Hide print button or any non-print elements if present */
             .no-print { display: none !important; }
@@ -287,7 +296,8 @@ body { font-weight: 600; }
 }
 
 /* Footer */
-.footer { text-align: center; font-size: 11px; color: #666; margin-top: 8px; }
+.footer { text-align: center; font-size: 14px; color: #666; margin-top: 8px; line-height: 1.6; word-wrap: break-word; overflow-wrap: break-word; }
+.footer-wrapper { margin-top: 10px; }
 
 /* Print adjustments */
 @media print {
@@ -358,8 +368,15 @@ body { font-weight: 600; }
             <table>
                     <tr><th>திருமண வகை:</th><td>
                     <?php
-                    $type = $profile['marriage_type'] ?? '';
-                    echo htmlspecialchars($type);
+                    $type = trim((string)($profile['marriage_type'] ?? ''));
+                    $typeLower = strtolower($type);
+                    if ($typeLower === 'first' || $type === 'முதல்மணம்') {
+                        echo 'முதல்மணம்';
+                    } elseif ($typeLower === 'second' || $type === 'மறுமணம்') {
+                        echo 'மறுமணம்';
+                    } else {
+                        echo $type ? htmlspecialchars($type) : '-';
+                    }
                     ?>
                 </td></tr>
                 <tr><th>பெயர்:</th><td><?php echo htmlspecialchars($profile['name']); ?></td></tr>
@@ -434,7 +451,8 @@ body { font-weight: 600; }
         <?php endif; ?>
     </div>
 
-    <div class="footer">Printed on <?php echo date('d F Y'); ?> — Made by Hifive web design</div>
+    <div class="footer">Printed on <?php echo date('d F Y'); ?> — contact: +91 90471 79211 | +91 86400 90400 | +91 63793 99175 | +91 82480 55207 | +91 97917 81651</div>
+
 </div>
 
 </body>

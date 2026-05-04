@@ -103,9 +103,16 @@ $districtsMap = [
                                 <table class="table">
                                     <tr>
                                         <th>திருமண வகை:</th>
-                                        <td><?php 
-                                            $type = $profile['marriage_type'] ?? '';
-                                            echo htmlspecialchars($type);
+<td><?php 
+                                            $type = trim((string)($profile['marriage_type'] ?? ''));
+                                            $typeLower = strtolower($type);
+                                            if ($typeLower === 'first' || $type === 'முதல்மணம்') {
+                                                echo 'முதல்மணம்';
+                                            } elseif ($typeLower === 'second' || $type === 'மறுமணம்') {
+                                                echo 'மறுமணம்';
+                                            } else {
+                                                echo $type ? htmlspecialchars($type) : '-';
+                                            }
                                         ?></td>
                                     </tr>
                                     <tr>
@@ -163,15 +170,8 @@ $districtsMap = [
                                     <tr>
                                         <th>படிப்பு பிரிவு:</th>
                                         <td><?php 
-                                            $educationType = trim($profile['education_type'] ?? '');
                                             $educationDetails = trim($profile['education_details'] ?? '');
-                                            if ($educationType === '' && $educationDetails === '') {
-                                                echo '';
-                                            } elseif ($educationType !== '' && $educationDetails !== '') {
-                                                echo htmlspecialchars($educationType . ' (' . $educationDetails . ')');
-                                            } else {
-                                                echo htmlspecialchars($educationType !== '' ? $educationType : $educationDetails);
-                                            }
+                                            echo $educationDetails !== '' ? htmlspecialchars($educationDetails) : '';
                                         ?></td>
                                     </tr>
                                     <tr>

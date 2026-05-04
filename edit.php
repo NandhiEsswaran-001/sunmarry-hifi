@@ -71,7 +71,9 @@ if (!function_exists('parseBirthDateInput')) {
 // Constants for file upload
 define('MAX_FILE_SIZE', 5 * 1024 * 1024); // 5MB
 define('ALLOWED_PHOTO_TYPES', ['image/jpeg', 'image/png', 'image/gif']);
+define('ALLOWED_PHOTO_EXTENSIONS', ['jpg', 'jpeg', 'png', 'gif']);
 define('ALLOWED_DOC_TYPES', ['application/pdf', 'image/jpeg', 'image/png']);
+define('ALLOWED_DOC_EXTENSIONS', ['pdf', 'jpg', 'jpeg', 'png']);
 
 // Fetch existing profile
 $stmt = $pdo->prepare("SELECT * FROM profiles WHERE id = ?");
@@ -94,6 +96,18 @@ if (!empty($existing_birth_date)) {
         $display_birth_date_iso = $d->format('Y-m-d');
     }
 }
+$birth_day_selected = isset($_POST['birth_day']) ? (int)$_POST['birth_day'] : 0;
+$birth_month_selected = isset($_POST['birth_month']) ? (int)$_POST['birth_month'] : 0;
+$birth_year_selected = isset($_POST['birth_year']) ? (int)$_POST['birth_year'] : 0;
+if ($birth_day_selected === 0 && $birth_month_selected === 0 && $birth_year_selected === 0 && $display_birth_date_iso !== '') {
+    $prefillDateObj = DateTime::createFromFormat('Y-m-d', $display_birth_date_iso);
+    if ($prefillDateObj) {
+        $birth_day_selected = (int)$prefillDateObj->format('j');
+        $birth_month_selected = (int)$prefillDateObj->format('n');
+        $birth_year_selected = (int)$prefillDateObj->format('Y');
+    }
+}
+
 $birth_hour_val = '';
 $birth_minute_val = '';
 $birth_ampm_val = '';
@@ -135,9 +149,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $name = $_POST['name'] ?? '';
-    $age = isset($_POST['age']) ? (int)$_POST['age'] : null;
-    $marriage_type = $_POST['marriage_type'] ?? '';
-    $gender = $_POST['gender'] ?? '';
+    $age = isset($_POST['age']) && $_POST['age'] !== '' ? (int)$_POST['age'] : ($profile['age'] ?? null);
+    $marriage_type = !empty($_POST['marriage_type']) ? $_POST['marriage_type'] : ($profile['marriage_type'] ?? 'First');
+    $gender = !empty($_POST['gender']) ? $_POST['gender'] : ($profile['gender'] ?? 'Female');
     $district = $_POST['district'] ?? '';
     $city = $_POST['city'] ?? '';
     $birth_place = $_POST['birth_place'] ?? '';
@@ -153,11 +167,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Birth date and time
     $original_birth_date = isset($_POST['birth_date']) ? trim($_POST['birth_date']) : null;
     $birth_date = isset($_POST['birth_date']) ? trim($_POST['birth_date']) : null;
+    $birth_day_selected = isset($_POST['birth_day']) ? (int)$_POST['birth_day'] : 0;
+    $birth_month_selected = isset($_POST['birth_month']) ? (int)$_POST['birth_month'] : 0;
+    $birth_year_selected = isset($_POST['birth_year']) ? (int)$_POST['birth_year'] : 0;
+    if (empty($birth_date) && $birth_day_selected > 0 && $birth_month_selected > 0 && $birth_year_selected > 0) {
+        $birth_date = sprintf('%04d-%02d-%02d', $birth_year_selected, $birth_month_selected, $birth_day_selected);
+    }
     $dateObj = null;
     if ($birth_date) {
         $dateObj = parseBirthDateInput($birth_date);
         if ($dateObj) {
             $birth_date = $dateObj->format('Y-m-d');
+            $birth_day_selected = (int)$dateObj->format('j');
+            $birth_month_selected = (int)$dateObj->format('n');
+            $birth_year_selected = (int)$dateObj->format('Y');
             $age = computeAgeFromDate($birth_date);
         } else {
             $birth_date = null;
@@ -208,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $supporting_doc_path = $profile['file_upload'];
 
     // Function to validate file upload
-    function validateFile($file, $allowedTypes, $maxSize, $type) {
+    function validateFile($file, $allowedTypes, $allowedExtensions, $maxSize, $type) {
         if ($file['error'] !== UPLOAD_ERR_OK) {
             if ($file['error'] !== UPLOAD_ERR_NO_FILE) {
                 throw new Exception("Error uploading $type: " . $file['error']);
@@ -218,6 +241,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($file['size'] > $maxSize) {
             throw new Exception("$type size exceeds limit of " . ($maxSize / 1024 / 1024) . "MB");
+        }
+
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowedExtensions)) {
+            throw new Exception("Invalid $type extension. Allowed: " . implode(', ', $allowedExtensions));
         }
 
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -234,7 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Upload new profile photo if provided
     if ($profile_photo && $profile_photo['error'] !== UPLOAD_ERR_NO_FILE) {
         try {
-            if (validateFile($profile_photo, ALLOWED_PHOTO_TYPES, MAX_FILE_SIZE, 'Profile photo')) {
+            if (validateFile($profile_photo, ALLOWED_PHOTO_TYPES, ALLOWED_PHOTO_EXTENSIONS, MAX_FILE_SIZE, 'Profile photo')) {
                 $ext = pathinfo($profile_photo['name'], PATHINFO_EXTENSION);
                 $profile_photo_name = uniqid() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
                 $new_path = $uploadDir . $profile_photo_name;
@@ -258,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Upload new supporting document if provided
     if ($supporting_doc && $supporting_doc['error'] !== UPLOAD_ERR_NO_FILE) {
         try {
-            if (validateFile($supporting_doc, ALLOWED_DOC_TYPES, MAX_FILE_SIZE, 'Supporting document')) {
+            if (validateFile($supporting_doc, ALLOWED_DOC_TYPES, ALLOWED_DOC_EXTENSIONS, MAX_FILE_SIZE, 'Supporting document')) {
                 $ext = pathinfo($supporting_doc['name'], PATHINFO_EXTENSION);
                 $supporting_doc_name = uniqid() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
                 $new_path = $uploadDir . $supporting_doc_name;
@@ -321,7 +349,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Only redirect when no upload/validation messages exist
         if (empty($message)) {
-            // Redirect to the edit page to reload from DB and avoid form resubmission
             header('Location: edit.php?id=' . intval($id) . '&updated=1');
             exit();
         }
@@ -403,16 +430,16 @@ $districtsMap = [
         <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <div class="row">
-                <!-- 1. Marriage type -->
+<!-- 1. Marriage type -->
                 <div class="col-md-6 mb-3">
                     <label class="form-label">திருமண வகை</label>
                     <div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="முதல்மணம்" <?php echo (empty($profile['marriage_type']) || $profile['marriage_type'] === 'முதல்மணம்') ? 'checked' : ''; ?> required>
+                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="First" <?php echo (empty($profile['marriage_type']) || $profile['marriage_type'] === 'முதல்மணம்' || $profile['marriage_type'] === 'First') ? 'checked' : ''; ?> required>
                             <label class="form-check-label" for="first">முதல்மணம்</label>
                         </div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="மறுமணம்" <?php echo $profile['marriage_type'] === 'மறுமணம்' ? 'checked' : ''; ?> required>
+                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="Second" <?php echo ($profile['marriage_type'] === 'மறுமணம்' || $profile['marriage_type'] === 'Second') ? 'checked' : ''; ?> required>
                             <label class="form-check-label" for="second">மறுமணம்</label>
                         </div>
                     </div>
@@ -441,16 +468,34 @@ $districtsMap = [
 
                 <!-- 4. Birth date -->
                 <div class="col-md-6 mb-3">
-                    <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்)</label>
-                        <input
-                            type="date"
-                            class="form-control"
-                            id="birth_date"
-                            name="birth_date"
-                            value="<?php echo htmlspecialchars($display_birth_date_iso); ?>"
-                            min="<?php echo date('Y-m-d', strtotime('-70 years')); ?>"
-                            max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>"
-                        >
+                    <label class="form-label">பிறந்த தேதி (நாள்)</label>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <select class="form-select" id="birth_day" name="birth_day">
+                                <option value="">Date</option>
+                                <?php for ($d = 1; $d <= 31; $d++): ?>
+                                    <option value="<?php echo $d; ?>" <?php echo ($birth_day_selected === $d) ? 'selected' : ''; ?>><?php echo $d; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <select class="form-select" id="birth_month" name="birth_month">
+                                <option value="">Month</option>
+                                <?php for ($m = 1; $m <= 12; $m++): ?>
+                                    <option value="<?php echo $m; ?>" <?php echo ($birth_month_selected === $m) ? 'selected' : ''; ?>><?php echo $m; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <select class="form-select" id="birth_year" name="birth_year">
+                                <option value="">Year</option>
+                                <?php for ($y = 1965; $y <= 2050; $y++): ?>
+                                    <option value="<?php echo $y; ?>" <?php echo ($birth_year_selected === $y) ? 'selected' : ''; ?>><?php echo $y; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <input type="hidden" id="birth_date" name="birth_date" value="<?php echo htmlspecialchars($display_birth_date_iso); ?>">
                 </div>
 
                 <!-- 5. Age -->
@@ -856,66 +901,54 @@ $districtsMap = [
                 return age;
             }
 
-            // Birth date validation and auto-update age select
+            // Birth date dropdown validation and auto-update age
+            const birthDayInput = document.getElementById('birth_day');
+            const birthMonthInput = document.getElementById('birth_month');
+            const birthYearInput = document.getElementById('birth_year');
             const birthDateInput = document.getElementById('birth_date');
-            if (birthDateInput) {
-                function computeAgeFromDateJS(value) {
-                    const d = parseBirthDate(value);
-                    if (!d || isNaN(d.getTime())) return null;
-                    const today = new Date();
-                    let age = today.getFullYear() - d.getFullYear();
-                    const m = today.getMonth() - d.getMonth();
-                    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) {
-                        age--;
-                    }
-                    return age;
+            const ageInput = document.getElementById('age');
+            function buildBirthDateValue() {
+                const day = parseInt(birthDayInput?.value || '', 10);
+                const month = parseInt(birthMonthInput?.value || '', 10);
+                const year = parseInt(birthYearInput?.value || '', 10);
+                if (!day || !month || !year) {
+                    if (birthDateInput) birthDateInput.value = '';
+                    return '';
                 }
-
-                function validateBirthDate() {
-                    const selectedDate = this.value;
-                    const ageInput = document.getElementById('age');
-                    if (!selectedDate.trim()) {
-                        this.setCustomValidity('');
-                        if (ageInput) {
-                            ageInput.value = '';
-                        }
-                        return;
-                    }
-                    const today = new Date();
-                    const minDate = new Date();
-                    minDate.setFullYear(today.getFullYear() - 70); // Max age 70 years
-                    const maxDate = new Date();
-                    maxDate.setFullYear(today.getFullYear() - 18); // Min age 18 years
-                    const validDate = parseBirthDate(selectedDate);
-
-                    if (!validDate || isNaN(validDate.getTime())) {
-                        this.setCustomValidity('Please choose a valid birth date.');
-                    } else if (validDate > maxDate) {
-                        this.setCustomValidity('Age must be at least 18 years');
-                    } else if (validDate < minDate) {
-                        this.setCustomValidity('Age cannot exceed 70 years');
-                    } else {
-                        this.setCustomValidity('');
-                    }
-
-                    // Auto-update age when birth date changes
-                    if (ageInput) {
-                        const ageVal = computeAgeFromDateJS(this.value);
-                        ageInput.value = ageVal !== null && !isNaN(ageVal) ? ageVal : '';
-                    }
+                const testDate = new Date(year, month - 1, day);
+                if (
+                    Number.isNaN(testDate.getTime()) ||
+                    testDate.getFullYear() !== year ||
+                    testDate.getMonth() !== (month - 1) ||
+                    testDate.getDate() !== day
+                ) {
+                    if (birthDateInput) birthDateInput.value = '';
+                    return '';
                 }
-
-                birthDateInput.addEventListener('input', validateBirthDate);
-                birthDateInput.addEventListener('change', validateBirthDate);
-                birthDateInput.addEventListener('blur', function() {
-                    const value = this.value.trim();
-                    if (value && !parseBirthDate(value)) {
-                        this.setCustomValidity('Please enter a valid birth date.');
-                    } else {
-                        this.setCustomValidity('');
-                    }
+                const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                if (birthDateInput) birthDateInput.value = iso;
+                return iso;
+            }
+            function validateBirthDateFromDropdowns() {
+                const birthDateValue = buildBirthDateValue();
+                if (!birthDateValue) {
+                    if (birthDayInput) birthDayInput.setCustomValidity('');
+                    if (ageInput) ageInput.value = '';
+                    return;
+                }
+                const ageVal = calculateAge(birthDateValue);
+                if (ageInput) ageInput.value = ageVal >= 0 ? ageVal : '';
+                if (birthDayInput) {
+                    birthDayInput.setCustomValidity(ageVal >= 0 ? '' : 'Please choose a valid birth date.');
+                }
+            }
+            if (birthDayInput && birthMonthInput && birthYearInput) {
+                ['change', 'input'].forEach(function(evt) {
+                    birthDayInput.addEventListener(evt, validateBirthDateFromDropdowns);
+                    birthMonthInput.addEventListener(evt, validateBirthDateFromDropdowns);
+                    birthYearInput.addEventListener(evt, validateBirthDateFromDropdowns);
                 });
-                validateBirthDate.call(birthDateInput);
+                validateBirthDateFromDropdowns();
             }
             // File size validation
             const maxSize = <?php echo MAX_FILE_SIZE; ?>;

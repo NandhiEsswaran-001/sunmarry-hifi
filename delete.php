@@ -14,6 +14,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
+// CSRF protection
+if (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+    die('Invalid request');
+}
+
 // Support bulk deletion via ids[] or single id
 $ids = [];
 if (!empty($_POST['ids']) && is_array($_POST['ids'])) {

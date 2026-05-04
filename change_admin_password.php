@@ -8,6 +8,14 @@ checkPermission('super_admin');
 $message = '';
 $error = '';
 
+// CSRF protection
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']))) {
+    $error = 'Invalid request';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $current_password = $_POST['current_password'];
     $new_password = $_POST['new_password'];
@@ -21,11 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch();
 
-        $storedHash = $user['password'] ?? '';
+$storedHash = $user['password'] ?? '';
         $passwordOk = $user && password_verify($current_password, $storedHash);
-        if (!$passwordOk && $storedHash !== '' && $storedHash === md5($current_password)) {
-            $passwordOk = true;
-        }
 
         if ($passwordOk) {
             // Update password
@@ -66,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endif; ?>
 
                         <form method="POST">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                             <div class="mb-3">
                                 <label for="current_password" class="form-label">Current Password</label>
                                 <input type="password" class="form-control" id="current_password" name="current_password" required>

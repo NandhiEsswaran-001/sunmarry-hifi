@@ -1,6 +1,18 @@
 <?php
 require_once 'auth.php';
-// Shared header with company logo. Place this file in the project and include it where needed.
+
+function setSecurityHeaders() {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('X-XSS-Protection: 1; mode=block');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
+}
+
+setSecurityHeaders();
+
 $isLoginPage = basename($_SERVER['PHP_SELF'] ?? '') === 'login.php';
 ?>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary no-print">
@@ -10,9 +22,17 @@ $isLoginPage = basename($_SERVER['PHP_SELF'] ?? '') === 'login.php';
                 <a class="navbar-brand d-flex align-items-center" href="login.php">
                     <img src="assets/SunLogoHeart.png" alt="Company Logo" class="company-logo" style="max-height: 60px;">
                 </a>
-                <div class="flex-grow-1 text-center text-white">
-                    <h2 class="mb-0 fw-bold">சன் மேட்ரிமோனி</h2>
-                    <small>அனைத்து சமூகத்திற்கும் திருமண வரன்கள்</small>
+                <div class="flex-grow-1 text-center text-white header-text">
+                    <h5 class="mb-0 fw-bold" style="font-size: 2.2rem;">சன் மேட்ரிமோனி</h5>
+                    <div style="font-size: 1.6rem; font-weight: bold;">ISO தரச்சான்று பெற்ற மேட்ரிமோனி</div>
+                    <small class="fs-6">அனைத்து சமூகத்திற்கும் திருமண வரன்கள்</small>
+                    <style>
+                    @media (max-width: 991px) {
+                        .header-text h5 { font-size: 1rem !important; }
+                        .header-text div { font-size: 0.75rem !important; }
+                        .header-text small { font-size: 0.65rem !important; }
+                    }
+                    </style>
                 </div>
                 <div style="width: 80px;"></div>
             </div>

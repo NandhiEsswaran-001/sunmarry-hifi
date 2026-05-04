@@ -8,8 +8,24 @@ try {
     // Keep dashboard usable even if the requests table cannot be created yet.
 }
 
-// Ensure only super admin can access
-checkPermission('super_admin');
+// Ensure only super admin and admin can access
+$role = getUserRole();
+if (!in_array($role, ['super_admin', 'admin'])) {
+    header('Location: access_denied.php');
+    exit();
+}
+
+// CSRF protection
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validate CSRF token for all POST requests
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
+        die('Invalid request');
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_registration_reviewed') {
     $requestId = isset($_POST['request_id']) ? (int)$_POST['request_id'] : 0;
@@ -101,6 +117,12 @@ try {
 $searchName = isset($_GET['search_name']) ? trim($_GET['search_name']) : '';
 $searchPhone = isset($_GET['search_phone']) ? trim($_GET['search_phone']) : '';
 
+// Pagination
+$perPage = 25;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) $page = 1;
+$offset = ($page - 1) * $perPage;
+
 // Build a dynamic query that includes all available columns
 $sql = "SELECT id, username, role, last_login";
 if ($hasProfilesViewedCol) {
@@ -132,6 +154,21 @@ if ($searchPhone !== '') {
     $params[':search_phone'] = "%$searchPhone%";
 }
 $sql .= " ORDER BY FIELD(role, 'admin', 'manager', 'special_customer', 'customer', 'support'), created_at DESC";
+
+// Get total count for pagination
+$countSql = str_replace("SELECT id, username, role, last_login", "SELECT COUNT(*)", $sql);
+$countSql = preg_replace('/ORDER BY.*/', '', $countSql);
+$totalStmt = !empty($params) ? $pdo->prepare($countSql) : $pdo->prepare($countSql);
+if (!empty($params)) {
+    $totalStmt->execute($params);
+} else {
+    $totalStmt->execute();
+}
+$totalUsers = (int)$totalStmt->fetchColumn();
+$totalPages = (int)ceil($totalUsers / $perPage);
+
+// Add LIMIT and OFFSET
+$sql .= " LIMIT $perPage OFFSET $offset";
 
 // Get all admin users except super admin, with search
 if (!empty($params)) {
@@ -166,7 +203,7 @@ $registrationRequests = $pdo->query(
             <div class="col-md-12">
                 <h2 class="mb-4"><?php echo (getUserRole() === 'admin') ? 'Admin Dashboard' : 'Super Admin Dashboard'; ?></h2>
                 
-                <?php if ((int)$stats['new_registration_requests'] > 0): ?>
+<?php if ((int)$stats['new_registration_requests'] > 0): ?>
                     <div class="alert alert-warning d-flex justify-content-between align-items-center mb-4">
                         <div>
                             <strong>Reminder:</strong>
@@ -174,6 +211,15 @@ $registrationRequests = $pdo->query(
                         </div>
                         <a href="#registration-requests" class="btn btn-dark btn-sm">View Requests</a>
                     </div>
+                <?php endif; ?>
+
+                <?php if (isset($_GET['success']) && $_GET['success'] === 'password_reset' && isset($_SESSION['reset_password'])): ?>
+                    <div class="alert alert-success">
+                        <strong>Password Reset Successful</strong><br>
+                        New password for <?php echo htmlspecialchars($_SESSION['reset_username'] ?? 'user'); ?>: <code><?php echo htmlspecialchars($_SESSION['reset_password']); ?></code><br>
+                        <small class="text-muted">Please share this password securely with the user.</small>
+                    </div>
+                    <?php unset($_SESSION['reset_password'], $_SESSION['reset_username']); ?>
                 <?php endif; ?>
 
                 <!-- Statistics Cards -->
@@ -277,20 +323,24 @@ $registrationRequests = $pdo->query(
                                             echo htmlspecialchars($roleLabel);
                                         ?>
                                     </span></td>
-                                    <?php if ($hasCreatedAtCol): ?><td><?php echo $user['created_at'] ? date('Y-m-d', strtotime($user['created_at'])) : 'N/A'; ?></td><?php endif; ?>
-                                    <td><?php echo $user['last_login'] ? date('Y-m-d', strtotime($user['last_login'])) : 'Never'; ?></td>
+                                    <?php if ($hasCreatedAtCol): ?><td><?php echo $user['created_at'] ? date('d-m-y', strtotime($user['created_at'])) : 'N/A'; ?></td><?php endif; ?>
+                                    <td><?php echo $user['last_login'] ? date('d-m-y', strtotime($user['last_login'])) : 'Never'; ?></td>
                                     <?php if ($hasProfilesViewedCol): ?><td><?php echo $user['profiles_viewed'] ?? '0'; ?></td><?php endif; ?>
                                     <td><?php echo !empty($user['phone']) ? htmlspecialchars($user['phone']) : '-'; ?></td>
                                     <td>
                                         <button class="btn btn-sm btn-info" onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['phone'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['note'] ?? '', ENT_QUOTES); ?>')">
                                             Edit
                                         </button>
+                                        <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                         <button class="btn btn-sm btn-warning" onclick="resetPassword(<?php echo $user['id']; ?>)">
                                             Reset
                                         </button>
+                                        <?php endif; ?>
+                                        <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                         <button class="btn btn-sm btn-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
                                             Delete
                                         </button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -312,13 +362,43 @@ $registrationRequests = $pdo->query(
                                 </div>
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-info" onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['phone'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($user['note'] ?? '', ENT_QUOTES); ?>')">Edit</button>
+                                    <?php if ($user['id'] != $_SESSION['user_id']): ?>
                                     <button class="btn btn-warning" onclick="resetPassword(<?php echo $user['id']; ?>)">Reset</button>
                                     <button class="btn btn-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">Delete</button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
-                            <?php endforeach; ?>
+<?php endforeach; ?>
                         </div>
                     </div>
+
+                    <!-- Pagination -->
+                    <?php if ($totalPages > 1): ?>
+                    <nav aria-label="Page navigation" class="mt-3">
+                        <ul class="pagination justify-content-center">
+                            <?php if ($page > 1): ?>
+                            <li class="page-item">
+                                <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>">Previous</a>
+                            </li>
+                            <?php endif; ?>
+                            <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                            <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                                <a class="page-link" href="?page=<?php echo $i; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>"><?php echo $i; ?></a>
+                            </li>
+                            <?php endfor; ?>
+                            <?php if ($page < $totalPages): ?>
+                            <li class="page-item">
+                                <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>">Next</a>
+                            </li>
+                            <?php endif; ?>
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted mb-3">
+                        <small>Showing <?php echo ($offset + 1); ?> - <?php echo min($offset + count($users), $totalUsers); ?> of <?php echo $totalUsers; ?> users</small>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
                 </div>
 
 <div class="card mt-4" id="registration-requests">
@@ -366,12 +446,14 @@ $registrationRequests = $pdo->query(
                                                 <td>
                                                     <?php if ($request['status'] === 'new'): ?>
                                                         <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                                             <input type="hidden" name="action" value="mark_registration_reviewed">
                                                             <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
                                                             <button type="submit" class="btn btn-sm btn-success py-0 px-1">Done</button>
                                                         </form>
                                                     <?php else: ?>
                                                         <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0" onsubmit="return confirm('Delete this request?');">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                                             <input type="hidden" name="action" value="delete_registration_request">
                                                             <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
                                                             <button type="submit" class="btn btn-sm btn-danger py-0 px-1">✕</button>
@@ -404,12 +486,14 @@ $registrationRequests = $pdo->query(
                                 </div>
                                 <?php if ($request['status'] === 'new'): ?>
                                 <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0">
+                                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <input type="hidden" name="action" value="mark_registration_reviewed">
                                     <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-success">Mark Reviewed</button>
                                 </form>
                                 <?php else: ?>
                                 <form method="POST" action="admin_dashboard.php#registration-requests" class="m-0" onsubmit="return confirm('Delete this request?');">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                                     <input type="hidden" name="action" value="delete_registration_request">
                                     <input type="hidden" name="request_id" value="<?php echo (int)$request['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-danger">Delete</button>
@@ -435,6 +519,7 @@ $registrationRequests = $pdo->query(
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form action="manage_user.php" method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
@@ -482,6 +567,7 @@ $registrationRequests = $pdo->query(
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form action="manage_user.php" method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                     <div class="modal-body">
                         <input type="hidden" id="edit_user_id" name="user_id">
                         <div class="mb-3">

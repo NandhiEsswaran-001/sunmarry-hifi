@@ -27,7 +27,15 @@ if (isCustomerRole()) {
     exit();
 }
 
-$message = '';
+// CSRF protection
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']))) {
+    $message = 'Invalid request';
+    $messageType = 'danger';
+    $_SERVER['REQUEST_METHOD'] = 'GET'; // Prevent form processing
+}
 
 if (!function_exists('parseBirthDateInput')) {
     function parseBirthDateInput($value) {
@@ -49,23 +57,36 @@ if (!function_exists('parseBirthDateInput')) {
 }
 
 $birth_date_input_value = '';
+$message = '';
+$birth_day_selected = isset($_POST['birth_day']) ? (int)$_POST['birth_day'] : 0;
+$birth_month_selected = isset($_POST['birth_month']) ? (int)$_POST['birth_month'] : 0;
+$birth_year_selected = isset($_POST['birth_year']) ? (int)$_POST['birth_year'] : 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'] ?? '';
     $age = isset($_POST['age']) ? (int)$_POST['age'] : 0;
-    $marriage_type = $_POST['marriage_type'] ?? '';
+    $marriage_type = $_POST['marriage_type'] ?? 'First';
     $gender = $_POST['gender'] ?? '';
     $district = $_POST['district'] ?? '';
     $city = $_POST['city'] ?? '';
     $birth_place = trim($_POST['birth_place'] ?? ''); // New field
     // Birth date and time
     $original_birth_date = $_POST['birth_date'] ?? null;
-    $birth_date = $_POST['birth_date'] ?? null; // input as DD-MM-YYYY, convert to YYYY-MM-DD
+    $birth_date = $_POST['birth_date'] ?? null; // input as DD-MM-YYYY or YYYY-MM-DD, convert to YYYY-MM-DD
+    $birth_day = isset($_POST['birth_day']) ? (int)$_POST['birth_day'] : 0;
+    $birth_month = isset($_POST['birth_month']) ? (int)$_POST['birth_month'] : 0;
+    $birth_year = isset($_POST['birth_year']) ? (int)$_POST['birth_year'] : 0;
+    if (empty($birth_date) && $birth_day > 0 && $birth_month > 0 && $birth_year > 0) {
+        $birth_date = sprintf('%04d-%02d-%02d', $birth_year, $birth_month, $birth_day);
+    }
     if ($birth_date) {
         $dateObj = parseBirthDateInput($birth_date);
         if ($dateObj) {
             $birth_date = $dateObj->format('Y-m-d');
             $birth_date_input_value = $birth_date;
+            $birth_day_selected = (int)$dateObj->format('j');
+            $birth_month_selected = (int)$dateObj->format('n');
+            $birth_year_selected = (int)$dateObj->format('Y');
             // Calculate age from birth date
             $birthDateObj = new DateTime($birth_date);
             $today = new DateTime();
@@ -204,19 +225,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $profile_photo_path = '';
     $supporting_doc_path = '';
 
-    // Upload profile photo
-    if ($profile_photo && $profile_photo['error'] === UPLOAD_ERR_OK) {
-        $profile_photo_name = uniqid() . '_' . basename($profile_photo['name']);
-        if (move_uploaded_file($profile_photo['tmp_name'], $uploadDir . $profile_photo_name)) {
-            $profile_photo_path = 'uploads/' . $profile_photo_name;
+    function validateUploadFile($file, $allowedTypes, $maxSize = 5 * 1024 * 1024) {
+        if ($file['error'] === UPLOAD_ERR_NO_FILE) {
+            return ['valid' => true, 'path' => ''];
+        }
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception("Upload error code: " . $file['error']);
+        }
+        if ($file['size'] > $maxSize) {
+            throw new Exception("File size exceeds " . ($maxSize / 1024 / 1024) . "MB limit");
+        }
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        if (!in_array($mimeType, $allowedTypes)) {
+            throw new Exception("Invalid file type: " . $mimeType);
+        }
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
+        if (!in_array($ext, $allowedExts)) {
+            throw new Exception("Invalid file extension: " . $ext);
+        }
+        return ['valid' => true];
+    }
+
+    $profile_photo_allowed = ['image/jpeg', 'image/png', 'image/gif'];
+    $supporting_doc_allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif'];
+    $max_file_size = 5 * 1024 * 1024;
+
+    if ($profile_photo && $profile_photo['error'] !== UPLOAD_ERR_NO_FILE) {
+        try {
+            $validation = validateUploadFile($profile_photo, $profile_photo_allowed, $max_file_size);
+            if ($validation['valid']) {
+                $profile_photo_name = uniqid() . '_' . bin2hex(random_bytes(8)) . '.' . strtolower(pathinfo($profile_photo['name'], PATHINFO_EXTENSION));
+                if (move_uploaded_file($profile_photo['tmp_name'], $uploadDir . $profile_photo_name)) {
+                    $profile_photo_path = 'uploads/' . $profile_photo_name;
+                }
+            }
+        } catch (Exception $e) {
+            $errors[] = "Profile photo error: " . $e->getMessage();
         }
     }
 
-    // Upload supporting document
-    if ($supporting_doc && $supporting_doc['error'] === UPLOAD_ERR_OK) {
-        $supporting_doc_name = uniqid() . '_' . basename($supporting_doc['name']);
-        if (move_uploaded_file($supporting_doc['tmp_name'], $uploadDir . $supporting_doc_name)) {
-            $supporting_doc_path = 'uploads/' . $supporting_doc_name;
+    if ($supporting_doc && $supporting_doc['error'] !== UPLOAD_ERR_NO_FILE) {
+        try {
+            $validation = validateUploadFile($supporting_doc, $supporting_doc_allowed, $max_file_size);
+            if ($validation['valid']) {
+                $supporting_doc_name = uniqid() . '_' . bin2hex(random_bytes(8)) . '.' . strtolower(pathinfo($supporting_doc['name'], PATHINFO_EXTENSION));
+                if (move_uploaded_file($supporting_doc['tmp_name'], $uploadDir . $supporting_doc_name)) {
+                    $supporting_doc_path = 'uploads/' . $supporting_doc_name;
+                }
+            }
+        } catch (Exception $e) {
+            $errors[] = "Supporting document error: " . $e->getMessage();
         }
     }
 
@@ -257,8 +318,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         $message = "சுயவிவரம் வெற்றிகரமாக உருவாக்கப்பட்டது!";
+        $messageType = 'success';
     } catch (PDOException $e) {
-        $message = "Error creating profile: " . $e->getMessage();
+        error_log("Profile creation error: " . $e->getMessage());
+        $message = "Error creating profile. Please try again.";
+        $messageType = 'danger';
     }
     }
 }
@@ -327,17 +391,18 @@ $districtsMap = [
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
             <div class="row">
                 <!-- 1. Marriage type -->
                 <div class="col-md-6 mb-3">
                     <label class="form-label">திருமண வகை</label>
                     <div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="முதல்மணம்" checked>
+                            <input class="form-check-input" type="radio" name="marriage_type" id="first" value="First" <?php echo (!isset($marriage_type) || $marriage_type === 'First') ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="first">முதல்மணம்</label>
                         </div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="மறுமணம்">
+                            <input class="form-check-input" type="radio" name="marriage_type" id="second" value="Second" <?php echo (isset($marriage_type) && $marriage_type === 'Second') ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="second">மறுமணம்</label>
                         </div>
                     </div>
@@ -348,11 +413,11 @@ $districtsMap = [
                     <label class="form-label">பாலினம்</label>
                     <div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="gender" id="female" value="Female" checked>
+                            <input class="form-check-input" type="radio" name="gender" id="female" value="Female" <?php echo (!isset($gender) || $gender === 'Female') ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="female">பெண்</label>
                         </div>
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="gender" id="male" value="Male">
+                            <input class="form-check-input" type="radio" name="gender" id="male" value="Male" <?php echo (isset($gender) && $gender === 'Male') ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="male">ஆண்</label>
                         </div>
                     </div>
@@ -361,22 +426,39 @@ $districtsMap = [
                 <!-- 3. Name -->
                 <div class="col-md-6 mb-3">
                     <label for="name" class="form-label">பெயர்</label>
-                    <input type="text" class="form-control" id="name" name="name" required>
+                    <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($name ?? ''); ?>" required>
                 </div>
 
 <!-- 4. Birth date -->
                 <div class="col-md-6 mb-3">
-                    <label for="birth_date" class="form-label">பிறந்த தேதி (நாள்) *</label>
-                        <input
-                            type="date"
-                            class="form-control"
-                            id="birth_date"
-                            name="birth_date"
-                            value="<?php echo htmlspecialchars($birth_date_input_value); ?>"
-                            min="<?php echo date('Y-m-d', strtotime('-70 years')); ?>"
-                            max="<?php echo date('Y-m-d', strtotime('-18 years')); ?>"
-                            required
-                        >
+                    <label class="form-label">பிறந்த தேதி (நாள்) *</label>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <select class="form-select" id="birth_day" name="birth_day" required>
+                                <option value="">Date</option>
+                                <?php for ($d = 1; $d <= 31; $d++): ?>
+                                    <option value="<?php echo $d; ?>" <?php echo ($birth_day_selected === $d) ? 'selected' : ''; ?>><?php echo $d; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <select class="form-select" id="birth_month" name="birth_month" required>
+                                <option value="">Month</option>
+                                <?php for ($m = 1; $m <= 12; $m++): ?>
+                                    <option value="<?php echo $m; ?>" <?php echo ($birth_month_selected === $m) ? 'selected' : ''; ?>><?php echo $m; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <select class="form-select" id="birth_year" name="birth_year" required>
+                                <option value="">Year</option>
+                                <?php for ($y = 1965; $y <= 2050; $y++): ?>
+                                    <option value="<?php echo $y; ?>" <?php echo ($birth_year_selected === $y) ? 'selected' : ''; ?>><?php echo $y; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <input type="hidden" id="birth_date" name="birth_date" value="<?php echo htmlspecialchars($birth_date_input_value); ?>">
                 </div>
 
                 <!-- 5. Age (computed) -->
@@ -425,54 +507,55 @@ $districtsMap = [
                         <?php
                         $rasis = ['மேஷம்','ரிஷபம்','மிதுனம்','கடகம்','சிம்மம்','கன்னி','துலாம்','விருச்சிகம்','தனுசு','மகரம்','கும்பம்','மீனம்'];
                         foreach ($rasis as $r) {
-                            echo "<option value=\"".htmlspecialchars($r)."\">".htmlspecialchars($r)."</option>";
+                            $selected = (isset($rasi) && $rasi === $r) ? 'selected' : '';
+                            echo "<option value=\"".htmlspecialchars($r)."\" ".$selected.">".htmlspecialchars($r)."</option>";
                         }
                         ?>
                     </select>
                 </div>
 
-                <!-- 9. Nakshatram -->
+<!-- 9. Nakshatram -->
                 <div class="col-md-6 mb-3">
                     <label for="nakshatram" class="form-label">நட்சத்திரம்(Nakshatram)</label>
                     <select class="form-select" id="nakshatram" name="nakshatram">
                         <option value="">-- தேர்வு செய்க --</option>
-                        <option value="அஸ்வினி">அஸ்வினி</option>
-                        <option value="பரணி">பரணி</option>
-                        <option value="கிருத்திகை">கிருத்திகை</option>
-                        <option value="ரோஹிணி">ரோஹிணி</option>
-                        <option value="மிருகசீரிடம்">மிருகசீரிடம்</option>
-                        <option value="திருவாதிரை">திருவாதிரை</option>
-                        <option value="புனர்பூசம்">புனர்பூசம்</option>
-                        <option value="பூசம்">பூசம்</option>
-                        <option value="ஆயில்யம்">ஆயில்யம்</option>
-                        <option value="மகம்">மகம்</option>
-                        <option value="பூரம்">பூரம்</option>
-                        <option value="உத்திரம்">உத்திரம்</option>
-                        <option value="ஹஸ்தம்">ஹஸ்தம்</option>
-                        <option value="சித்திரை">சித்திரை</option>
-                        <option value="சுவாதி">சுவாதி</option>
-                        <option value="விசாகம்">விசாகம்</option>
-                        <option value="அனுஷம்">அனுஷம்</option>
-                        <option value="கேட்டை">கேட்டை</option>
-                        <option value="மூலம்">மூலம்</option>
-                        <option value="பூராடம்">பூராடம்</option>
-                        <option value="உத்திராடம்">உத்திராடம்</option>
-                        <option value="திருவோணம்">திருவோணம்</option>
-                        <option value="அவிட்டம்">அவிட்டம்</option>
-                        <option value="சதயம்">சதயம்</option>
-                        <option value="பூரட்டாதி">பூரட்டாதி</option>
-                        <option value="உத்திரட்டாதி">உத்திரட்டாதி</option>
-                        <option value="ரேவதி">ரேவதி</option>
+                        <option value="அஸ்வினி" <?php echo (isset($nakshatram) && $nakshatram === 'அஸ்வினி') ? 'selected' : ''; ?>>அஸ்வினி</option>
+                        <option value="பரணி" <?php echo (isset($nakshatram) && $nakshatram === 'பரணி') ? 'selected' : ''; ?>>பரணி</option>
+                        <option value="கிருத்திகை" <?php echo (isset($nakshatram) && $nakshatram === 'கிருத்திகை') ? 'selected' : ''; ?>>கிருத்திகை</option>
+                        <option value="ரோஹிணி" <?php echo (isset($nakshatram) && $nakshatram === 'ரோஹிணி') ? 'selected' : ''; ?>>ரோஹிணி</option>
+                        <option value="மிருகசீரிடம்" <?php echo (isset($nakshatram) && $nakshatram === 'மிருகசீரிடம்') ? 'selected' : ''; ?>>மிருகசீரிடம்</option>
+                        <option value="திருவாதிரை" <?php echo (isset($nakshatram) && $nakshatram === 'திருவாதிரை') ? 'selected' : ''; ?>>திருவாதிரை</option>
+                        <option value="புனர்பூசம்" <?php echo (isset($nakshatram) && $nakshatram === 'புனர்பூசம்') ? 'selected' : ''; ?>>புனர்பூசம்</option>
+                        <option value="பூசம்" <?php echo (isset($nakshatram) && $nakshatram === 'பூசம்') ? 'selected' : ''; ?>>பூசம்</option>
+                        <option value="ஆயில்யம்" <?php echo (isset($nakshatram) && $nakshatram === 'ஆயில்யம்') ? 'selected' : ''; ?>>ஆயில்யம்</option>
+                        <option value="மகம்" <?php echo (isset($nakshatram) && $nakshatram === 'மகம்') ? 'selected' : ''; ?>>மகம்</option>
+                        <option value="பூரம்" <?php echo (isset($nakshatram) && $nakshatram === 'பூரம்') ? 'selected' : ''; ?>>பூரம்</option>
+                        <option value="உத்திரம்" <?php echo (isset($nakshatram) && $nakshatram === 'உத்திரம்') ? 'selected' : ''; ?>>உத்திரம்</option>
+                        <option value="ஹஸ்தம்" <?php echo (isset($nakshatram) && $nakshatram === 'ஹஸ்தம்') ? 'selected' : ''; ?>>ஹஸ்தம்</option>
+                        <option value="சித்திரை" <?php echo (isset($nakshatram) && $nakshatram === 'சித்திரை') ? 'selected' : ''; ?>>சித்திரை</option>
+                        <option value="சுவாதி" <?php echo (isset($nakshatram) && $nakshatram === 'சுவாதி') ? 'selected' : ''; ?>>சுவாதி</option>
+                        <option value="விசாகம்" <?php echo (isset($nakshatram) && $nakshatram === 'விசாகம்') ? 'selected' : ''; ?>>விசாகம்</option>
+                        <option value="அனுஷம்" <?php echo (isset($nakshatram) && $nakshatram === 'அனுஷம்') ? 'selected' : ''; ?>>அனுஷம்</option>
+                        <option value="கேட்டை" <?php echo (isset($nakshatram) && $nakshatram === 'கேட்டை') ? 'selected' : ''; ?>>கேட்டை</option>
+                        <option value="மூலம்" <?php echo (isset($nakshatram) && $nakshatram === 'மூலம்') ? 'selected' : ''; ?>>மூலம்</option>
+                        <option value="பூராடம்" <?php echo (isset($nakshatram) && $nakshatram === 'பூராடம்') ? 'selected' : ''; ?>>பூராடம்</option>
+                        <option value="உத்திராடம்" <?php echo (isset($nakshatram) && $nakshatram === 'உத்திராடம்') ? 'selected' : ''; ?>>உத்திராடம்</option>
+                        <option value="திருவோணம்" <?php echo (isset($nakshatram) && $nakshatram === 'திருவோணம்') ? 'selected' : ''; ?>>திருவோணம்</option>
+                        <option value="அவிட்டம்" <?php echo (isset($nakshatram) && $nakshatram === 'அவிட்டம்') ? 'selected' : ''; ?>>அவிட்டம்</option>
+                        <option value="சதயம்" <?php echo (isset($nakshatram) && $nakshatram === 'சதயம்') ? 'selected' : ''; ?>>சதயம்</option>
+                        <option value="பூரட்டாதி" <?php echo (isset($nakshatram) && $nakshatram === 'பூரட்டாதி') ? 'selected' : ''; ?>>பூரட்டாதி</option>
+                        <option value="உத்திரட்டாதி" <?php echo (isset($nakshatram) && $nakshatram === 'உத்திரட்டாதி') ? 'selected' : ''; ?>>உத்திரட்டாதி</option>
+                        <option value="ரேவதி" <?php echo (isset($nakshatram) && $nakshatram === 'ரேவதி') ? 'selected' : ''; ?>>ரேவதி</option>
                     </select>
                 </div>
 
-                <!-- 10. Caste -->
+<!-- 10. Caste -->
                 <div class="col-md-6 mb-3">
                     <label for="caste" class="form-label">சாதி பெயர் (Caste) *</label>
                     <select class="form-select" id="caste" name="caste" required>
                         <option value="">-- தேர்வு செய்க --</option>
                         <?php
-                        $castes = [
+$castes = [
                             '24 மனை தெலுங்கு (8 வீடு)',
                             '24 மனை தெலுங்கு (16 வீடு)',
                             'கவுண்டர் (கொங்கு வெள்ளாள கவுண்டர்)',
@@ -504,8 +587,9 @@ $districtsMap = [
                             'கிறிஸ்டியன் (RC)',
                             'கிறிஸ்டியன் (CSI)',
                             'கிறிஸ்டியன் (Pentecost)',
-                            'முஸ்லிம் (தமிழ் முஸ்லிம்)',
-                            'முஸ்லிம் (உருது முஸ்லிம்)',
+                            'முஸ்லிம்கள்',
+                            'முஸ்லிம் (தமிழ் முஸ்லிம)',
+                            'முஸ்லிம் (உருது முஸ்லிம)',
                             'வன்னியர்',
                             'மருத்துவர்',
                             'நாடார்',
@@ -532,17 +616,16 @@ $districtsMap = [
                             'குறவர்',
                             'மீனவர்'
                         ];
-                        foreach ($castes as $c) {
-                            echo "<option value=\"".htmlspecialchars($c)."\">".htmlspecialchars($c)."</option>";
-                        }
-                        ?>
+                        foreach ($castes as $c): ?>
+                        <option value="<?php echo $c; ?>" <?php echo (isset($caste) && $caste === $c) ? 'selected' : ''; ?>><?php echo $c; ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 
                 <!-- 11. Kulam -->
                 <div class="col-md-6 mb-3">
                     <label for="kulam" class="form-label">குலம் (கோத்திரம்)</label>
-                    <input type="text" class="form-control" id="kulam" name="kulam" placeholder="குலம் / கோத்திரம்">
+                    <input type="text" class="form-control" id="kulam" name="kulam" placeholder="குலம் / கோத்திரம்" value="<?php echo htmlspecialchars($kulam ?? ''); ?>">
                 </div>
 
                 <!-- 12. Dosham -->
@@ -550,9 +633,9 @@ $districtsMap = [
                     <label for="dosham" class="form-label">தோசம் (Dosham)</label>
                     <select class="form-select" id="dosham" name="dosham">
                         <option value="">-- தேர்வு செய்க --</option>
-                        <option value="ராகு கேது">ராகு கேது</option>
-                        <option value="பரிகார செவ்வாய்">பரிகார செவ்வாய்</option>
-                        <option value="சுத்த ஜாதகம்">சுத்த ஜாதகம்</option>
+                        <option value="ராகு கேது" <?php echo (isset($dosham) && $dosham === 'ராகு கேது') ? 'selected' : ''; ?>>ராகு கேது</option>
+                        <option value="பரிகார செவ்வாய்" <?php echo (isset($dosham) && $dosham === 'பரிகார செவ்வாய்') ? 'selected' : ''; ?>>பரிகார செவ்வாய்</option>
+                        <option value="சுத்த ஜாதகம்" <?php echo (isset($dosham) && $dosham === 'சுத்த ஜாதகம்') ? 'selected' : ''; ?>>சுத்த ஜாதகம்</option>
                     </select>
                 </div>
 
@@ -561,21 +644,21 @@ $districtsMap = [
                     <label for="education_select" class="form-label">படிப்பு(Education) *</label>
                     <select class="form-select" id="education_select" name="education_select" required>
                         <option value="">-- தேர்வு செய்க --</option>
-                        <option value="10th, 12th">10th, 12th</option>
-                        <option value="Degree UG/PG">Degree UG/PG</option>
+                        <option value="10th, 12th" <?php echo (isset($education) && $education === '10th, 12th') ? 'selected' : ''; ?>>10th, 12th</option>
+                        <option value="Degree UG/PG" <?php echo (isset($education) && $education === 'Degree UG/PG') ? 'selected' : ''; ?>>Degree UG/PG</option>
                     </select>
                 </div>
 
                 <!-- 14. Education text -->
                 <div class="col-md-6 mb-3">
                     <label for="education_text" class="form-label">படிப்பு பிரிவு *</label>
-                    <input type="text" class="form-control" id="education_text" name="education_text" placeholder="படித்த பட்டதை எழுதுக, உதா: BE, PHD" required>
+                    <input type="text" class="form-control" id="education_text" name="education_text" placeholder="படித்த பட்டதை எழுதுக, உதா: BE, PHD" value="<?php echo htmlspecialchars($education_text ?? ''); ?>" required>
                 </div>
 
                 <!-- 15. Profession -->
                 <div class="col-md-4 mb-3">
                     <label for="profession" class="form-label">வேலை (Profession)</label>
-                    <input type="text" class="form-control" id="profession" name="profession" placeholder="உதா: ஆசிரியர், பொறியாளர்">
+                    <input type="text" class="form-control" id="profession" name="profession" placeholder="உதா: ஆசிரியர், பொறியாளர்" value="<?php echo htmlspecialchars($profession ?? ''); ?>">
                 </div>
 
                 <!-- 16. District -->
@@ -584,7 +667,7 @@ $districtsMap = [
                     <select class="form-select" id="district" name="district" required>
                         <option value="">மாவட்டத்தைத் தேர்வு செய்க</option>
                         <?php foreach($districtsMap as $en => $ta): ?>
-                            <option value="<?php echo htmlspecialchars($en); ?>"><?php echo htmlspecialchars($ta); ?></option>
+                            <option value="<?php echo htmlspecialchars($en); ?>" <?php echo (isset($district) && $district === $en) ? 'selected' : ''; ?>><?php echo htmlspecialchars($ta); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -592,7 +675,7 @@ $districtsMap = [
                 <!-- 17. City -->
                 <div class="col-md-4 mb-3">
                     <label for="city" class="form-label">வசிக்கும் ஊர் *</label>
-                    <input type="text" class="form-control" id="city" name="city" required>
+                    <input type="text" class="form-control" id="city" name="city" value="<?php echo htmlspecialchars($city ?? ''); ?>" required>
                 </div>
 
                 <!-- 18-21. Siblings -->
@@ -602,7 +685,7 @@ $districtsMap = [
                             <label for="brothers_total" class="form-label">சகோதரர்கள்</label>
                             <select class="form-select" id="brothers_total" name="brothers_total">
                                 <?php for ($i=0; $i<=5; $i++): ?>
-                                    <option value="<?php echo $i; ?>" <?php echo $i===0 ? 'selected' : ''; ?>><?php echo $i; ?></option>
+                                    <option value="<?php echo $i; ?>" <?php echo (isset($brothers_total) && $brothers_total === $i) ? 'selected' : ''; ?>><?php echo $i; ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -610,7 +693,7 @@ $districtsMap = [
                             <label for="sisters_total" class="form-label">சகோதரிகள்</label>
                             <select class="form-select" id="sisters_total" name="sisters_total">
                                 <?php for ($i=0; $i<=5; $i++): ?>
-                                    <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
+                                    <option value="<?php echo $i; ?>" <?php echo (isset($sisters_total) && $sisters_total === $i) ? 'selected' : ''; ?>><?php echo $i; ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -620,21 +703,21 @@ $districtsMap = [
                 <!-- 22-24. Phones -->
                 <div class="col-md-4 mb-3">
                     <label for="phone1" class="form-label">தொலைபேசி 1 *</label>
-                    <input type="tel" class="form-control" id="phone1" name="phone1" placeholder="+91" required maxlength="10">
+                    <input type="tel" class="form-control" id="phone1" name="phone1" placeholder="+91" value="<?php echo htmlspecialchars($phone1 ?? ''); ?>" required maxlength="10" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="phone2" class="form-label">தொலைபேசி 2</label>
-                    <input type="tel" class="form-control" id="phone2" name="phone2" placeholder="(optional)" maxlength="10">
+                    <input type="tel" class="form-control" id="phone2" name="phone2" placeholder="(optional)" value="<?php echo htmlspecialchars($phone2 ?? ''); ?>" maxlength="10" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
                 </div>
                 <div class="col-md-4 mb-3">
                     <label for="phone3" class="form-label">குறிப்பு</label>
-                    <input type="text" class="form-control" id="phone3" name="phone3" placeholder="(optional)" maxlength="30">
+                    <input type="text" class="form-control" id="phone3" name="phone3" placeholder="(optional)" value="<?php echo htmlspecialchars($phone3 ?? ''); ?>" maxlength="30">
                 </div>
 
                 <!-- Notes -->
                 <div class="col-12 mb-3">
                     <label for="notes" class="form-label">குறிப்பு விவரங்கள்</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="3" maxlength="30" placeholder="குறிப்பு விவரங்களை உள்ளிடவும்"></textarea>
+                    <textarea class="form-control" id="notes" name="notes" rows="3" maxlength="30" placeholder="குறிப்பு விவரங்களை உள்ளிடவும்"><?php echo htmlspecialchars($notes ?? ''); ?></textarea>
                 </div>
 
                 <!-- 25. Profile photo -->
@@ -706,19 +789,47 @@ $districtsMap = [
             return age;
         }
         document.addEventListener('DOMContentLoaded', function() {
+            const birthDayInput = document.getElementById('birth_day');
+            const birthMonthInput = document.getElementById('birth_month');
+            const birthYearInput = document.getElementById('birth_year');
             const birthDateInput = document.getElementById('birth_date');
             const ageInput = document.getElementById('age');
             const phone1Input = document.getElementById('phone1');
             const phone2Input = document.getElementById('phone2');
+            function buildBirthDateValue() {
+                const day = parseInt(birthDayInput?.value || '', 10);
+                const month = parseInt(birthMonthInput?.value || '', 10);
+                const year = parseInt(birthYearInput?.value || '', 10);
+                if (!day || !month || !year) {
+                    if (birthDateInput) birthDateInput.value = '';
+                    return '';
+                }
+                const testDate = new Date(year, month - 1, day);
+                if (
+                    Number.isNaN(testDate.getTime()) ||
+                    testDate.getFullYear() !== year ||
+                    testDate.getMonth() !== (month - 1) ||
+                    testDate.getDate() !== day
+                ) {
+                    if (birthDateInput) birthDateInput.value = '';
+                    return '';
+                }
+                const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                if (birthDateInput) birthDateInput.value = iso;
+                return iso;
+            }
             function updateAge() {
-                if (!birthDateInput.value.trim()) {
+                const birthDateValue = buildBirthDateValue();
+                if (!birthDateValue) {
                     ageInput.value = 0;
-                    birthDateInput.setCustomValidity('');
+                    if (birthDayInput) birthDayInput.setCustomValidity('');
                     return;
                 }
-                const age = calculateAge(birthDateInput.value);
-                ageInput.value = age > 0 ? age : 0;
-                birthDateInput.setCustomValidity(age > 0 ? '' : 'Please choose a valid birth date.');
+                const age = calculateAge(birthDateValue);
+                ageInput.value = age >= 0 ? age : 0;
+                if (birthDayInput) {
+                    birthDayInput.setCustomValidity(age >= 0 ? '' : 'Please choose a valid birth date.');
+                }
             }
             function validatePhones() {
                 if (!phone1Input || !phone2Input) return;
@@ -730,8 +841,12 @@ $districtsMap = [
                     phone2Input.setCustomValidity('');
                 }
             }
-            if (birthDateInput) {
-                birthDateInput.addEventListener('input', updateAge);
+            if (birthDayInput && birthMonthInput && birthYearInput) {
+                ['change', 'input'].forEach(function(evt) {
+                    birthDayInput.addEventListener(evt, updateAge);
+                    birthMonthInput.addEventListener(evt, updateAge);
+                    birthYearInput.addEventListener(evt, updateAge);
+                });
                 updateAge();
             }
             if (phone1Input && phone2Input) {

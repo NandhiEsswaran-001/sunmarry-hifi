@@ -5,7 +5,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$error = '';
+// CSRF protection
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']))) {
+    $error = 'Invalid request';
+}
 // Ensure there's a pending OTP
 if (empty($_SESSION['pending_otp_user_id'])) {
     header('Location: login.php');
@@ -73,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                     <p>OTP was sent to the administrator email. Enter the 6-digit code below. It expires in 5 minutes.</p>
                     <form method="POST" action="">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                         <div class="mb-3">
                             <label for="otp" class="form-label">OTP</label>
                             <input type="text" id="otp" name="otp" class="form-control" maxlength="6" required>

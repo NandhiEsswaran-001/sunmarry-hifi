@@ -271,12 +271,12 @@ function generate_and_send_otp_for_user(int $user_id): bool {
             }
             $mail->addAddress($to);
             // TEMPORARY DEBUG BCC: send a copy to developer/test address so admin can always
-            // receive a copy while debugging live delivery. Remove this after verification.
-            try {
-                $mail->addBCC('arunasaithambiclassified@gmail.com');
-            } catch (Exception $e) {
-                // ignore if BCC fails
-            }
+            // receive a copy while debugging live delivery. Commented out for security.
+            // try {
+            //     $mail->addBCC('arunasaithambiclassified@gmail.com');
+            // } catch (Exception $e) {
+            //     // ignore if BCC fails
+            // }
             $mail->Subject = $subject;
             $mail->Body = $message;
             $sent = (bool)$mail->send();
@@ -303,8 +303,8 @@ function generate_and_send_otp_for_user(int $user_id): bool {
     try {
         $logDir = __DIR__ . '/logs';
         if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
-        $entry = sprintf("%s | user_id=%d | fetched_email=%s | to=%s | otp=%s | method=%s | sent=%s | err=%s\n",
-            (new DateTime())->format('Y-m-d H:i:s'), $user_id, ($userEmail ?: 'NULL'), ($to ?: 'NONE'), $otp, $method, $sent ? '1' : '0', str_replace("\n", ' ', $errorMsg)
+        $entry = sprintf("%s | user_id=%d | fetched_email=%s | to=%s | sent=%s | err=%s\n",
+            (new DateTime())->format('Y-m-d H:i:s'), $user_id, ($userEmail ?: 'NULL'), ($to ?: 'NONE'), $sent ? '1' : '0', str_replace("\n", ' ', $errorMsg)
         );
         @file_put_contents($logDir . '/otp.log', $entry, FILE_APPEND | LOCK_EX);
     } catch (\Exception $e) {

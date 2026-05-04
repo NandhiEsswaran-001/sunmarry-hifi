@@ -2,11 +2,21 @@
 require_once 'db.php';
 require_once 'auth.php';
 
-// Ensure only super admin can access
-checkPermission('super_admin');
+// Ensure only super admin and admin can access
+$role = getUserRole();
+if (!in_array($role, ['super_admin', 'admin'])) {
+    header('Location: access_denied.php');
+    exit();
+}
 
 function generateRandomPassword() {
     return substr(str_shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'), 0, 12);
+}
+
+// CSRF protection - only required for POST actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']))) {
+    header('Location: admin_dashboard.php?error=csrf');
+    exit();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -29,6 +39,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if (strlen($username) < 3) {
             $redirectError('Username too short');
+        }
+        if (strlen($password) < 8) {
+            $redirectError('Password must be at least 8 characters');
+        }
+        if (!preg_match('/[A-Z]/', $password)) {
+            $redirectError('Password must contain at least one uppercase letter');
+        }
+        if (!preg_match('/[a-z]/', $password)) {
+            $redirectError('Password must contain at least one lowercase letter');
+        }
+        if (!preg_match('/[0-9]/', $password)) {
+            $redirectError('Password must contain at least one number');
         }
 
         // Validate role
@@ -142,14 +164,14 @@ if (isset($_GET['action'])) {
     }
 
     switch ($_GET['action']) {
-        case 'reset':
+case 'reset':
             $newPassword = generateRandomPassword();
             $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
             $stmt->execute([password_hash($newPassword, PASSWORD_DEFAULT), $userId]);
-            
-            // Show the new password to the admin
-            echo "New password for {$user['username']}: {$newPassword}";
-            echo "<br><a href='admin_dashboard.php'>Back to Dashboard</a>";
+
+            $_SESSION['reset_password'] = $newPassword;
+            $_SESSION['reset_username'] = $user['username'];
+            header('Location: admin_dashboard.php?success=password_reset');
             exit();
 
         case 'delete':

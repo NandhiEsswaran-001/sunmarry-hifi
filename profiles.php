@@ -20,15 +20,15 @@ try {
 }
 
 // Initialize filter variables
-$sort_id = isset($_GET['sort_id']) ? $_GET['sort_id'] : '';
+$sort_id = isset($_GET['sort_id']) ? $_GET['sort_id'] : 'asc';
 $id_from = isset($_GET['id_from']) ? trim($_GET['id_from']) : '';
 $id_to = isset($_GET['id_to']) ? trim($_GET['id_to']) : '';
 $age_from = $_GET['age_from'] ?? '';
 $age_to = $_GET['age_to'] ?? '';
-$gender = $_GET['gender'] ?? '';
+$gender = $_GET['gender'] ?? 'Female';
 $selectedDistricts = $_GET['districts'] ?? [];
 $city = $_GET['city'] ?? '';
-$marriage_type = $_GET['marriage_type'] ?? '';
+$marriage_type = $_GET['marriage_type'] ?? 'முதல்மணம்';
 $selectedCastes = isset($_GET['castes']) ? (array)$_GET['castes'] : [];
 $selectedNakshatram = isset($_GET['nakshatram']) ? (array)$_GET['nakshatram'] : [];
 $selectedEducation = isset($_GET['education']) ? (array)$_GET['education'] : [];
@@ -36,6 +36,7 @@ $selectedDosham = isset($_GET['dosham']) ? (array)$_GET['dosham'] : [];
 $phone = $_GET['phone'] ?? ''; // mobile search (visible to super_admin & manager only in UI)
 $name = $_GET['name'] ?? '';
 $id_search = isset($_GET['id_search']) ? trim($_GET['id_search']) : '';
+$hasSearched = isset($_GET['searched']) && $_GET['searched'] === '1';
 
 $role = getUserRole();
 $isNormalCustomer = ($role === 'customer');
@@ -117,7 +118,8 @@ if ($age_from && $age_to) {
 }
 
 if ($gender) {
-    $where[] = "gender = ?";
+    // Also include profiles with NULL or empty gender to handle edge cases
+    $where[] = "(gender = ? OR gender IS NULL OR gender = '')";
     $params[] = $gender;
 }
 if (!empty($selectedDistricts)) {
@@ -131,10 +133,22 @@ if ($city) {
 }
 
 if ($marriage_type) {
-    $where[] = "marriage_type = ?";
-    $params[] = $marriage_type;
-
+    // Handle both Tamil and English values for backwards compatibility
+    // Also handle case where filter has English but DB has Tamil or vice versa
+    // Also include profiles with NULL or empty marriage_type to handle edge cases
+    if ($marriage_type === 'முதல்மணம்') {
+        $where[] = "(marriage_type = 'முதல்மணம்' OR marriage_type = 'First' OR marriage_type IS NULL OR marriage_type = '')";
+    } elseif ($marriage_type === 'மறுமணம்') {
+        $where[] = "(marriage_type = 'மறுமணம்' OR marriage_type = 'Second' OR marriage_type IS NULL OR marriage_type = '')";
+    } elseif ($marriage_type === 'First') {
+        $where[] = "(marriage_type = 'முதல்மணம்' OR marriage_type = 'First' OR marriage_type IS NULL OR marriage_type = '')";
+    } elseif ($marriage_type === 'Second') {
+        $where[] = "(marriage_type = 'மறுமணம்' OR marriage_type = 'Second' OR marriage_type IS NULL OR marriage_type = '')";
+    } else {
+        $where[] = "marriage_type = ?";
+        $params[] = $marriage_type;
     }
+}
 
     if (!empty($selectedCastes)) {
         $placeholders = str_repeat('?,', count($selectedCastes) - 1) . '?';
@@ -186,29 +200,34 @@ if ($sort_id === 'asc') {
     $orderBy = ' ORDER BY id DESC';
 }
 
-$sql = "SELECT * FROM profiles";
-if (!empty($where)) {
-    $sql .= " WHERE " . implode(" AND ", $where);
-}
-$sql .= $orderBy;
-
-// Pagination
+// Pagination defaults
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $perPage = 10;
 $offset = ($page - 1) * $perPage;
+$totalRecords = 0;
+$totalPages = 0;
+$profiles = [];
 
-// Count total records for pagination
-$countSql = "SELECT COUNT(*) FROM profiles" . (!empty($where) ? " WHERE " . implode(" AND ", $where) : "");
-$stmt = $pdo->prepare($countSql);
-$stmt->execute($params);
-$totalRecords = $stmt->fetchColumn();
-$totalPages = ceil($totalRecords / $perPage);
+if ($hasSearched) {
+    $sql = "SELECT * FROM profiles";
+    if (!empty($where)) {
+        $sql .= " WHERE " . implode(" AND ", $where);
+    }
+    $sql .= $orderBy;
 
-// Get paginated results
-$sql .= " LIMIT $perPage OFFSET $offset";
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$profiles = $stmt->fetchAll();
+    // Count total records for pagination
+    $countSql = "SELECT COUNT(*) FROM profiles" . (!empty($where) ? " WHERE " . implode(" AND ", $where) : "");
+    $stmt = $pdo->prepare($countSql);
+    $stmt->execute($params);
+    $totalRecords = (int)$stmt->fetchColumn();
+    $totalPages = (int)ceil($totalRecords / $perPage);
+
+    // Get paginated results
+    $sql .= " LIMIT $perPage OFFSET $offset";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $profiles = $stmt->fetchAll();
+}
 
 // Tamil Nadu districts map: value => label (English => Tamil)
 $districtsMap = [
@@ -297,10 +316,13 @@ $districtsMap = [
             width: 100%;
             text-align: left;
             position: relative;
-            white-space: nowrap;
+            white-space: normal;
             overflow: hidden;
             text-overflow: ellipsis;
             padding-right: 25px;
+            font-size: 0.85rem;
+            line-height: 1.2;
+            min-height: 38px;
         }
         .district-dropdown button::after {
             position: absolute;
@@ -336,6 +358,10 @@ $districtsMap = [
         .table th {
             background-color: #f8f9fa;
             vertical-align: middle;
+        }
+        .table th a {
+            display: inline-flex;
+            align-items: center;
         }
         .table td {
             vertical-align: middle;
@@ -507,16 +533,17 @@ $districtsMap = [
         <div class="card mb-4">
             <div class="card-body">
                 <form method="GET" class="row g-3">
+                    <input type="hidden" name="searched" value="1">
                     <!-- Row 1: திருமண வகை / பாலினம்/ வயது -->
                     <div class="col-md-4">
                         <label class="form-label">திருமண வகை</label>
                         <div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="marriage_type" id="first_marriage" value="முதல்மணம்" <?php echo (empty($marriage_type) || $marriage_type === 'முதல்மணம்') ? 'checked' : ''; ?>>
+                                <input class="form-check-input" type="radio" name="marriage_type" id="first_marriage" value="முதல்மணம்" <?php echo (empty($marriage_type) || $marriage_type === 'முதல்மணம்' || $marriage_type === 'First') ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="first_marriage">முதல்மணம்</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="marriage_type" id="second_marriage" value="மறுமணம்" <?php echo $marriage_type === 'மறுமணம்' ? 'checked' : ''; ?>>
+                                <input class="form-check-input" type="radio" name="marriage_type" id="second_marriage" value="மறுமணம்" <?php echo ($marriage_type === 'மறுமணம்' || $marriage_type === 'Second') ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="second_marriage">மறுமணம்</label>
                             </div>
                         </div>
@@ -526,7 +553,7 @@ $districtsMap = [
                         <label class="form-label">பாலினம்</label>
                         <div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="gender" id="female" value="Female" <?php echo ($gender === 'Female' || $gender === '') ? 'checked' : ''; ?>>
+                                <input class="form-check-input" type="radio" name="gender" id="female" value="Female" <?php echo ($gender === 'Female') ? 'checked' : ''; ?>>
                                 <label class="form-check-label" for="female">பெண்</label>
                             </div>
                             <div class="form-check form-check-inline">
@@ -694,7 +721,7 @@ $districtsMap = [
                                 <label class="dropdown-item">
                                     <input type="checkbox" name="districts[]" value="<?php echo htmlspecialchars($en); ?>" 
                                            <?php echo (isset($selectedDistricts) && in_array($en, (array)$selectedDistricts)) ? 'checked' : ''; ?>>
-                                    <?php echo htmlspecialchars($ta); ?>
+                                    <span><?php echo htmlspecialchars($ta); ?></span>
                                 </label>
                                 <?php endforeach; ?>
                             </div>
@@ -821,6 +848,9 @@ $districtsMap = [
         </div>
         <!-- End of filter form -->
         <div class="mobile-table-wrapper">
+            <?php if (!$hasSearched): ?>
+                <div class="alert alert-info">தேடல் பொத்தானை அழுத்திய பிறகு மட்டுமே சுயவிவரங்கள் காண்பிக்கப்படும்.</div>
+            <?php else: ?>
             <?php
                 // Calculate displayed range for the results
                 $resultsOnPage = count($profiles);
@@ -828,20 +858,41 @@ $districtsMap = [
                 $endResult = $totalRecords > 0 ? ($offset + $resultsOnPage) : 0;
             ?>
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <div>
-                    <strong style="font-size: 1.2rem;">மொத்த வரன்கள்:</strong>
-                    <?php if ($totalRecords > 0): ?>
-                        <span style="font-size: 1.2rem; font-weight:bold;"><?php echo htmlspecialchars($startResult); ?> - <?php echo htmlspecialchars($endResult); ?> of <?php echo htmlspecialchars($totalRecords); ?></span>
-                    <?php else: ?>
-                        <span style="font-size: 1.2rem; font-weight:bold;">0</span>
+                <div class="d-flex align-items-center gap-3">
+                    <div>
+                        <strong style="font-size: 1.2rem;">மொத்த வரன்கள்:</strong>
+                        <?php if ($totalRecords > 0): ?>
+                            <span style="font-size: 1.2rem; font-weight:bold;"><?php echo htmlspecialchars($startResult); ?> - <?php echo htmlspecialchars($endResult); ?> of <?php echo htmlspecialchars($totalRecords); ?></span>
+                        <?php else: ?>
+                            <span style="font-size: 1.2rem; font-weight:bold;">0</span>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($totalRecords > 0 && in_array(getUserRole(), ['super_admin', 'admin'])): ?>
+                        <?php 
+                        $exportParams = $_GET;
+                        $exportParams['export'] = 'excel';
+                        $exportUrl = 'export_excel.php?' . http_build_query($exportParams);
+                        ?>
+                        <a href="<?php echo htmlspecialchars($exportUrl); ?>" class="btn btn-success btn-sm" target="_blank">
+                            Excel Export (<?php echo $totalRecords; ?>)
+                        </a>
                     <?php endif; ?>
                 </div>
                 <div>
                     <small class="text-muted">Page <?php echo htmlspecialchars($page); ?> of <?php echo htmlspecialchars(max(1, $totalPages)); ?></small>
+                    <div class="mt-1">
+                        <a href="?sort_id=desc<?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['sort_id' => ''])) : ''; ?>" title="Newest first" style="text-decoration:none; vertical-align:middle; margin-right:15px;">
+                            <span style="font-size:2.8em; font-weight:bold; color:#007bff;">&#8595;</span>
+                        </a>
+                        <a href="?sort_id=asc<?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['sort_id' => ''])) : ''; ?>" title="Oldest first" style="text-decoration:none; vertical-align:middle;">
+                            <span style="font-size:2.8em; font-weight:bold; color:#dc3545;">&#8593;</span>
+                        </a>
+                    </div>
                 </div>
             </div>
             <!-- Bulk delete form -->
             <form method="POST" action="delete.php" id="bulkDeleteForm">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
             <table class="table table-striped table-hover" style="--bs-table-striped-bg: #fff;">
                 <thead>
                     <tr>
@@ -852,11 +903,11 @@ $districtsMap = [
                         </th>
                         <th>
                             ID
-                            <a href="?sort_id=desc<?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['sort_id' => ''])) : ''; ?>" title="Newest first" style="text-decoration:none; vertical-align:middle;">
-                                <span style="font-size:2.3em; font-weight:bold; color:#007bff;">&#8595;</span>
+                            <a href="?sort_id=desc<?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['sort_id' => ''])) : ''; ?>" title="Newest first" style="text-decoration:none; vertical-align:middle; margin-left:8px;">
+                                <span style="font-size:2.8em; font-weight:bold; color:#007bff;">&#8595;</span>
                             </a>
-                            <a href="?sort_id=asc<?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['sort_id' => ''])) : ''; ?>" title="Oldest first" style="text-decoration:none; vertical-align:middle;">
-                                <span style="font-size:1.3em; font-weight:bold; color:#dc3545;">&#8593;</span>
+                            <a href="?sort_id=asc<?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['sort_id' => ''])) : ''; ?>" title="Oldest first" style="text-decoration:none; vertical-align:middle; margin-left:6px;">
+                                <span style="font-size:2.8em; font-weight:bold; color:#dc3545;">&#8593;</span>
                             </a>
                         </th>
                         <th>படம்</th>
@@ -891,7 +942,7 @@ $districtsMap = [
                         </td>
                         <td data-label="பெயர்"><?php echo htmlspecialchars($profile['name']); ?></td>
                         <td data-label="வயது"><?php echo htmlspecialchars($profile['age']); ?></td>
-                        <td data-label="பாலினம்"><?php echo $profile['gender'] === 'Male' ? 'ஆண்' : 'பெண்'; ?></td>
+                        <td data-label="பாலினம்"><?php echo htmlspecialchars($profile['gender']) === 'Male' ? 'ஆண்' : 'பெண்'; ?></td>
                         <td data-label="மாவட்டம்"><?php echo htmlspecialchars($districtsMap[$profile['district']] ?? $profile['district']); ?></td>
                         <td data-label="சாதி"><?php echo htmlspecialchars(($profile['caste'] ?? '') . (!empty($profile['subcaste']) ? ' / ' . $profile['subcaste'] : '')); ?></td>
                         <td data-label="நட்சத்திரம்"><?php echo htmlspecialchars($profile['nakshatram'] ?? ''); ?></td>
@@ -899,7 +950,7 @@ $districtsMap = [
                         <td data-label="ஊர்"><?php echo htmlspecialchars($profile['city']); ?></td>
                         <td data-label="வேலை" class="mobile-actions">
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer'])): ?>
-                                <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">பார் (No Phone PDF)</a>
+                                <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">பார் (No Number)</a>
                             <?php endif; ?>
                             <a href="view.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-info">பார் (Number)</a>
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
@@ -922,7 +973,7 @@ $districtsMap = [
                 </tbody>
             </table>
                 </form>
-                <?php if (!isCustomerRole()): ?>
+                <?php if (in_array(getUserRole(), ['super_admin', 'admin'])): ?>
                     <div class="mb-3">
                         <button id="deleteSelectedBtn" class="btn btn-danger" disabled>Delete selected</button>
                     </div>
@@ -942,6 +993,7 @@ $districtsMap = [
                 <?php endfor; ?>
             </ul>
         </nav>
+        <?php endif; ?>
         <?php endif; ?>
         </div>
 
@@ -1004,6 +1056,37 @@ $districtsMap = [
             setupSelectAllClearAll('#selectAllReligion', '#clearAllReligion', 'religion[]');
             setupSelectAllClearAll('#selectAllEducation', '#clearAllEducation', 'education[]');
             setupSelectAllClearAll('#selectAllDosham', '#clearAllDosham', 'dosham[]');
+
+            // Update selected values on dropdown buttons
+            function updateDropdownValues(inputName, spanId, useLabelText = false) {
+                var $checkboxes = $('input[name="' + inputName + '"]:checked');
+                var values;
+                if (useLabelText) {
+                    values = $checkboxes.map(function() { return $(this).siblings('span').text() || $(this).closest('label').text().trim(); }).get();
+                } else {
+                    values = $checkboxes.map(function() { return $(this).val(); }).get();
+                }
+                var $span = $('#' + spanId);
+                if (values.length > 0) {
+                    $span.text(' (' + values.join(', ') + ')');
+                } else {
+                    $span.text('');
+                }
+            }
+
+            // Bind change events for each checkbox group
+            $(document).on('change', 'input[name="castes[]"]', function() { updateDropdownValues('castes[]', 'selectedCasteCount'); });
+            $(document).on('change', 'input[name="districts[]"]', function() { updateDropdownValues('districts[]', 'selectedCount', true); });
+            $(document).on('change', 'input[name="education[]"]', function() { updateDropdownValues('education[]', 'selectedEducationCount'); });
+            $(document).on('change', 'input[name="nakshatram[]"]', function() { updateDropdownValues('nakshatram[]', 'selectedNakshatramCount'); });
+            $(document).on('change', 'input[name="dosham[]"]', function() { updateDropdownValues('dosham[]', 'selectedDoshamCount'); });
+
+            // Update on page load based on existing selections
+            updateDropdownValues('castes[]', 'selectedCasteCount');
+            updateDropdownValues('districts[]', 'selectedCount', true);
+            updateDropdownValues('education[]', 'selectedEducationCount');
+            updateDropdownValues('nakshatram[]', 'selectedNakshatramCount');
+            updateDropdownValues('dosham[]', 'selectedDoshamCount');
 
             // ...existing code...
             // Remove double-click/double-enter protection and related styles if not needed
