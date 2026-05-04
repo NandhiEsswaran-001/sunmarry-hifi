@@ -1,8 +1,5 @@
--- Updated Database Schema for Sunmarry
--- Run this file on your hosting server
-
-CREATE DATABASE IF NOT EXISTS u757552137_sunmarry_db;
-USE u757552137_sunmarry_db;
+-- Database: u757552137_matrimony_db
+USE u757552137_matrimony_db;
 
 -- Users table with role-based access
 CREATE TABLE IF NOT EXISTS users (
