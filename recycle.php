@@ -35,7 +35,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: recycle.php');
+    if ($action === 'permanent') {
+        header('Location: recycle.php?deleted=1');
+    } else {
+        header('Location: recycle.php');
+    }
     exit();
 }
 
@@ -58,6 +62,13 @@ $deleted = $stmt->fetchAll();
     <div class="container mt-4">
         <h2>Recycle Bin</h2>
         <p class="text-muted">Deleted profiles can be restored or permanently removed.</p>
+
+        <?php if (isset($_GET['deleted']) && $_GET['deleted'] == '1'): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            சுயவிவரம் வெற்றிகரமாக நீக்கப்பட்டது.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
 
         <?php if (empty($deleted)): ?>
             <div class="alert alert-info">No deleted profiles.</div>
@@ -105,5 +116,6 @@ $deleted = $stmt->fetchAll();
             </div>
         <?php endif; ?>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

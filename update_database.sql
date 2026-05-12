@@ -21,14 +21,15 @@ CREATE TABLE IF NOT EXISTS users (
 -- Insert default admin
 -- Password: admin (use the existing hash from your hosting or hash for 'admin123')
 INSERT INTO users (id, username, password, role, credits, profiles_viewed) VALUES 
-(1, 'admin', '$2y$10$bFtZ8krRD785m8SOJ9oIZeHSjZnU5jyOJrNgxq49V6uxEyLh1eacO', 'super_admin', 10, 0)
+(1, 'admin', '$2y$12$86FT8Ffkz5hC9urRIQZR7O47uceL.0UEjfNp.oLzcfY88QZprFPFC', 'super_admin', 10, 0)
 ON DUPLICATE KEY UPDATE username = username;
 
 -- Insert sample staff/users
+-- Password for all: admin123
 INSERT INTO users (username, password, role, credits, profiles_viewed, phone) VALUES 
-('admin1', '$2y$10$2aINJTiaFyZ9m63nybv5ouvTLJWHE.Z98rao7pbteLO/Ry8Zyqmhu', 'super_admin', 10, 0, NULL),
-('staff1', '$2y$10$SEMDDPZAPQZlsOWUk4XB8u3H5734f8G0sqe2.d.EZ/ECKGgGL6lp6', 'manager', 20, 0, '9677317513'),
-('user1', '$2y$10$4598CdxC/jV0kwZfoo.1XOMrn386X4Aqj6nhnQpkt6DXiqad6Qsju', 'support', 12, 8, '9677314125');
+('admin1', '$2y$12$86FT8Ffkz5hC9urRIQZR7O47uceL.0UEjfNp.oLzcfY88QZprFPFC', 'super_admin', 10, 0, NULL),
+('staff1', '$2y$12$86FT8Ffkz5hC9urRIQZR7O47uceL.0UEjfNp.oLzcfY88QZprFPFC', 'manager', 20, 0, '9677317513'),
+('user1', '$2y$12$86FT8Ffkz5hC9urRIQZR7O47uceL.0UEjfNp.oLzcfY88QZprFPFC', 'support', 12, 8, '9677314125');
 
 -- Profiles table
 CREATE TABLE IF NOT EXISTS profiles (

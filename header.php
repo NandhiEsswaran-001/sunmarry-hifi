@@ -44,6 +44,14 @@ $isLoginPage = basename($_SERVER['PHP_SELF'] ?? '') === 'login.php';
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
+            <style>
+            .navbar-toggler-icon {
+                background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%280,0,0,0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='3' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+            }
+            .navbar-toggler {
+                border-color: rgba(0,0,0,0.3) !important;
+            }
+            </style>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <?php if (isset($_SESSION['role']) && !isCustomerRole()): ?>

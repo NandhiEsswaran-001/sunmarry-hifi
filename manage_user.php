@@ -58,7 +58,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $redirectError('Invalid role specified');
         }
 
-        try {
+try {
+            // Limit super_admin users to 1
+            if ($role === 'super_admin') {
+                $superAdminCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'super_admin'")->fetchColumn();
+                if ($superAdminCount >= 1) {
+                    $redirectError('Super admin limit reached (max 1 super admin)');
+                }
+            }
+
             // Limit admin users to 3
             if ($role === 'admin') {
                 $adminCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();

@@ -72,7 +72,10 @@ $districtsMap = [
     'Ranipet' => 'ராணிப்பேட்டை',
     'Tenkasi' => 'தென்காசி',
     'Tirupathur' => 'திருப்பத்தூர்',
-    'Pondicherry' => 'புதுச்சேரி'
+    'Pondicherry' => 'புதுச்சேரி',
+    'Kerala' => 'கேரளா',
+    'Karnataka' => 'கர்நாடகா',
+    'Andhra/Telangana' => 'ஆந்திரா / தெலங்கானா'
 ];
 ?>
 <!DOCTYPE html>
@@ -376,7 +379,7 @@ body { font-weight: 600; }
 <body>
 
 <div class="no-print text-center mt-3" style="margin:8px;">
-    <button onclick="window.print()" class="btn btn-primary">🖨️ Print</button>
+    <button onclick="window.print()" class="btn btn-success">🖨️ Print</button>
 </div>
 
 <div class="print-layout">

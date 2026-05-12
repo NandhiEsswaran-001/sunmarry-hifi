@@ -68,7 +68,10 @@ $districtsMap = [
     'Ranipet' => 'ராணிப்பேட்டை',
     'Tenkasi' => 'தென்காசி',
     'Tirupathur' => 'திருப்பத்தூர்',
-    'Pondicherry' => 'புதுச்சேரி'
+    'Pondicherry' => 'புதுச்சேரி',
+    'Kerala' => 'கேரளா',
+    'Karnataka' => 'கர்நாடகா',
+    'Andhra/Telangana' => 'ஆந்திரா / தெலங்கானா'
 ];
 ?>
 <!DOCTYPE html>

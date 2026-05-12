@@ -26,7 +26,7 @@ function generateExcel($data, $filename = 'profiles.xlsx') {
     
     echo '<table border="1">';
     echo '<tr>';
-    echo '<th>ID</th><th>Name</th><th>Age</th><th>Gender</th><th>Caste</th><th>Nakshatram</th><th>Education</th><th>City</th><th>Phone</th>';
+    echo '<th>ID</th><th>Name</th><th>Age</th><th>Gender</th><th>Caste</th><th>Nakshatram</th><th>Education</th><th>City</th><th>Phone 1</th><th>Phone 2</th>';
     echo '</tr>';
     
     foreach ($data as $row) {
@@ -40,11 +40,8 @@ function generateExcel($data, $filename = 'profiles.xlsx') {
         echo '<td>'.escapeForExcel($row['education_type'] ?? '').'</td>';
         echo '<td>'.escapeForExcel($row['city'] ?? '').'</td>';
         
-        $phone = $row['phone_primary'] ?? '';
-        if (empty($phone) && !empty($row['phone_secondary'])) {
-            $phone = $row['phone_secondary'];
-        }
-        echo '<td>'.escapeForExcel($phone).'</td>';
+        echo '<td>'.escapeForExcel($row['phone_primary'] ?? '').'</td>';
+        echo '<td>'.escapeForExcel($row['phone_secondary'] ?? '').'</td>';
         
         echo '</tr>';
     }

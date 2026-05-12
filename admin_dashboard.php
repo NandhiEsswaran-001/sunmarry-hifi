@@ -114,6 +114,7 @@ try {
 }
 
 // Handle search
+$searchId = isset($_GET['search_id']) ? trim($_GET['search_id']) : '';
 $searchName = isset($_GET['search_name']) ? trim($_GET['search_name']) : '';
 $searchPhone = isset($_GET['search_phone']) ? trim($_GET['search_phone']) : '';
 
@@ -152,6 +153,10 @@ if ($searchName !== '') {
 if ($searchPhone !== '') {
     $sql .= " AND phone LIKE :search_phone";
     $params[':search_phone'] = "%$searchPhone%";
+}
+if ($searchId !== '') {
+    $sql .= " AND id = :search_id";
+    $params[':search_id'] = $searchId;
 }
 $sql .= " ORDER BY FIELD(role, 'admin', 'manager', 'special_customer', 'customer', 'support'), created_at DESC";
 
@@ -203,7 +208,33 @@ $registrationRequests = $pdo->query(
             <div class="col-md-12">
                 <h2 class="mb-4"><?php echo (getUserRole() === 'admin') ? 'Admin Dashboard' : 'Super Admin Dashboard'; ?></h2>
                 
-<?php if ((int)$stats['new_registration_requests'] > 0): ?>
+<?php if (isset($_GET['error'])): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <?php echo htmlspecialchars($_GET['error']); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (isset($_GET['success']) && $_GET['success'] === 'created'): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        User created successfully!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+                <?php if (isset($_GET['success']) && $_GET['success'] === 'updated'): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        User updated successfully!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+                <?php if (isset($_GET['success']) && $_GET['success'] === 'deleted'): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        User deleted successfully!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ((int)$stats['new_registration_requests'] > 0): ?>
                     <div class="alert alert-warning d-flex justify-content-between align-items-center mb-4">
                         <div>
                             <strong>Reminder:</strong>
@@ -277,13 +308,16 @@ $registrationRequests = $pdo->query(
 
                 <!-- Search Form -->
                 <form class="row g-3 mb-4" method="get" action="">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" name="search_id" placeholder="Search by ID" value="<?php echo htmlspecialchars($searchId); ?>">
+                    </div>
+                    <div class="col-md-3">
                         <input type="text" class="form-control" name="search_name" placeholder="Search by Name" value="<?php echo htmlspecialchars($searchName); ?>">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <input type="text" class="form-control" name="search_phone" placeholder="Search by Mobile Number" value="<?php echo htmlspecialchars($searchPhone); ?>">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <button type="submit" class="btn btn-primary">Search</button>
                         <a href="admin_dashboard.php" class="btn btn-secondary">Reset</a>
                     </div>
@@ -302,6 +336,7 @@ $registrationRequests = $pdo->query(
                             <table class="table table-hover mb-0">
                                 <thead>
                                     <tr>
+                                        <th>ID</th>
                                         <th>Username</th>
                                         <th>Role</th>
                                         <?php if ($hasCreatedAtCol): ?><th>Created Date</th><?php endif; ?>
@@ -314,6 +349,7 @@ $registrationRequests = $pdo->query(
                                 <tbody>
                                     <?php foreach ($users as $user): ?>
                                     <tr>
+                                        <td><?php echo $user['id']; ?></td>
                                         <td><?php echo htmlspecialchars($user['username']); ?></td>
                                         <td><span class="badge bg-<?php echo $user['role'] === 'manager' ? 'info' : ($user['role'] === 'admin' ? 'dark' : ($user['role'] === 'special_customer' ? 'secondary' : 'warning')); ?>">
                                         <?php
@@ -351,7 +387,7 @@ $registrationRequests = $pdo->query(
                             <?php foreach ($users as $user): ?>
                             <div class="border-bottom p-2">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <strong><?php echo htmlspecialchars($user['username']); ?></strong>
+                                    <strong>#<?php echo $user['id']; ?> <?php echo htmlspecialchars($user['username']); ?></strong>
                                     <span class="badge bg-<?php echo ($user['role'] === 'manager' ? 'info' : ($user['role'] === 'admin' ? 'dark' : ($user['role'] === 'special_customer' ? 'secondary' : 'warning'))); ?>">
                                         <?php echo ($user['role'] === 'special_customer' ? 'Special' : ($user['role'] === 'support' ? 'Customer' : ucfirst($user['role']))); ?>
                                     </span>
@@ -374,21 +410,21 @@ $registrationRequests = $pdo->query(
 
                     <!-- Pagination -->
                     <?php if ($totalPages > 1): ?>
-                    <nav aria-label="Page navigation" class="mt-3">
-                        <ul class="pagination justify-content-center">
+                    <nav aria-label="Page navigation" class="mt-4" style="overflow-x: auto; max-width: 100%;">
+                        <ul class="pagination pagination-lg justify-content-center mb-0" style="flex-wrap: wrap;">
                             <?php if ($page > 1): ?>
                             <li class="page-item">
-                                <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>">Previous</a>
+                                <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchId) ? '&search_id=' . urlencode($searchId) : ''; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>">Previous</a>
                             </li>
                             <?php endif; ?>
                             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                             <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
-                                <a class="page-link" href="?page=<?php echo $i; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>"><?php echo $i; ?></a>
+                                <a class="page-link" href="?page=<?php echo $i; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchId) ? '&search_id=' . urlencode($searchId) : ''; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>"><?php echo $i; ?></a>
                             </li>
                             <?php endfor; ?>
                             <?php if ($page < $totalPages): ?>
                             <li class="page-item">
-                                <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>">Next</a>
+                                <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchId) ? '&search_id=' . urlencode($searchId) : ''; ?><?php echo !empty($searchName) ? '&search_name=' . urlencode($searchName) : ''; ?><?php echo !empty($searchPhone) ? '&search_phone=' . urlencode($searchPhone) : ''; ?>">Next</a>
                             </li>
                             <?php endif; ?>
                         </ul>

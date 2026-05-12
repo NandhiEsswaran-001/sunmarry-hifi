@@ -48,6 +48,6 @@ foreach ($ids as $deleteId) {
     }
 }
 
-// Redirect back to profiles list
-header('Location: profiles.php');
+// Redirect back to profiles list with success message
+header('Location: profiles.php?deleted=1');
 exit();

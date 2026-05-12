@@ -269,7 +269,10 @@ $districtsMap = [
     'Ranipet' => 'ராணிப்பேட்டை',
     'Tenkasi' => 'தென்காசி',
     'Tirupathur' => 'திருப்பத்தூர்',
-    'Pondicherry' => 'புதுச்சேரி'
+    'Pondicherry' => 'புதுச்சேரி',
+    'Kerala' => 'கேரளா',
+    'Karnataka' => 'கர்நாடகா',
+    'Andhra/Telangana' => 'ஆந்திரா / தெலங்கானா'
 ];
 ?>
 <!DOCTYPE html>
@@ -528,6 +531,13 @@ $districtsMap = [
                 </div>
             <?php endif; ?>
         </div>
+
+        <?php if (isset($_GET['deleted']) && $_GET['deleted'] == '1'): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            சுயவிவரம் நீக்கப்பட்டு Recycle Bin நகர்த்தப்பட்டது.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
 
         <!-- Filter Form - All Users -->
         <div class="card mb-4">
@@ -950,14 +960,14 @@ $districtsMap = [
                         <td data-label="ஊர்"><?php echo htmlspecialchars($profile['city']); ?></td>
                         <td data-label="வேலை" class="mobile-actions">
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager', 'customer', 'special_customer'])): ?>
-                                <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">பார் (No Number)</a>
+                                <a href="print2.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-outline-dark">பார் (No Number)</a>
                             <?php endif; ?>
                             <a href="view.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-info">பார் (Number)</a>
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'manager'])): ?>
                                 <a href="edit.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-warning">திருத்து</a>
                             <?php endif; ?>
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin', 'customer', 'special_customer'])): ?>
-                                <a href="print.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-secondary">பிரிண்ட்</a>
+                                <a href="print.php?id=<?php echo $profile['id']; ?>" class="btn btn-sm btn-success">பிரிண்ட்</a>
                             <?php endif; ?>
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin'])): ?>
                                 <!-- Delete form: uses POST and a JS confirmation to avoid accidental deletes -->
@@ -982,8 +992,8 @@ $districtsMap = [
 
         <!-- Pagination -->
         <?php if ($totalPages > 1): ?>
-        <nav aria-label="Page navigation" class="mt-4" style="overflow-x: auto; max-width: 100%;">
-            <ul class="pagination justify-content-center mb-0" style="flex-wrap: wrap;">
+<nav aria-label="Page navigation" class="mt-5" style="overflow-x: auto; max-width: 100%;">
+            <ul class="pagination pagination-lg justify-content-center mb-0" style="flex-wrap: wrap;">
                 <?php for($i = 1; $i <= $totalPages; $i++): ?>
                     <li class="page-item <?php echo $page === $i ? 'active' : ''; ?>">
                         <a class="page-link" href="?page=<?php echo $i; ?><?php echo !empty($_GET) ? '&' . http_build_query(array_diff_key($_GET, ['page' => ''])) : ''; ?>">
@@ -1101,6 +1111,11 @@ $districtsMap = [
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
+        }
+        .pagination-lg .page-link {
+            font-size: 1.3rem !important;
+            padding: 0.6rem 0.9rem !important;
+            min-width: 2.8rem !important;
         }
     </style>
 </body>
