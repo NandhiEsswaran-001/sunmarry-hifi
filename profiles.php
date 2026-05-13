@@ -578,7 +578,7 @@ $districtsMap = [
                         <div class="d-flex gap-2 align-items-center">
                             <select class="form-select" id="age_from" name="age_from">
                                 <option value="">முதல்</option>
-                                <?php for($i = 18; $i <= 55; $i++): ?>
+                                <?php for($i = 18; $i <= 65; $i++): ?>
                                     <option value="<?php echo $i; ?>" <?php echo isset($_GET['age_from']) && $_GET['age_from'] == $i ? 'selected' : ''; ?>>
                                         <?php echo $i; ?>
                                     </option>
@@ -587,7 +587,7 @@ $districtsMap = [
                             <span>வரை</span>
                             <select class="form-select" id="age_to" name="age_to">
                                 <option value=""></option>
-                                <?php for($i = 18; $i <= 55; $i++): ?>
+                                <?php for($i = 18; $i <= 65; $i++): ?>
                                     <option value="<?php echo $i; ?>" <?php echo isset($_GET['age_to']) && $_GET['age_to'] == $i ? 'selected' : ''; ?>>
                                         <?php echo $i; ?>
                                     </option>
