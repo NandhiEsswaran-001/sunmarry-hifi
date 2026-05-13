@@ -972,6 +972,7 @@ $districtsMap = [
                             <?php if (in_array(getUserRole(), ['super_admin', 'admin'])): ?>
                                 <!-- Delete form: uses POST and a JS confirmation to avoid accidental deletes -->
                                 <form method="POST" action="delete.php" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this profile? This cannot be undone.');">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
                                     <input type="hidden" name="id" value="<?php echo $profile['id']; ?>">
                                     <button type="submit" class="btn btn-sm btn-danger">அழி</button>
                                 </form>
