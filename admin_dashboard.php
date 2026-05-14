@@ -639,15 +639,38 @@ $registrationRequests = $pdo->query(
         editModal.show();
     }
 
+    function postForm(action, userId) {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'manage_user.php';
+        var csrf = document.createElement('input');
+        csrf.type = 'hidden';
+        csrf.name = 'csrf_token';
+        csrf.value = '<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>';
+        form.appendChild(csrf);
+        var actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = action;
+        form.appendChild(actionInput);
+        var idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'id';
+        idInput.value = userId;
+        form.appendChild(idInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+
     function resetPassword(userId) {
         if (confirm('Are you sure you want to reset this user\'s password?')) {
-            window.location.href = `manage_user.php?action=reset&id=${userId}`;
+            postForm('reset', userId);
         }
     }
 
     function deleteUser(userId) {
         if (confirm('Are you sure you want to delete this user?')) {
-            window.location.href = `manage_user.php?action=delete&id=${userId}`;
+            postForm('delete', userId);
         }
     }
     </script>

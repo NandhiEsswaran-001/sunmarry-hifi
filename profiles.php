@@ -872,7 +872,7 @@ $districtsMap = [
                     <div>
                         <strong style="font-size: 1.2rem;">மொத்த வரன்கள்:</strong>
                         <?php if ($totalRecords > 0): ?>
-                            <span style="font-size: 1.2rem; font-weight:bold;"><?php echo htmlspecialchars($startResult); ?> - <?php echo htmlspecialchars($endResult); ?> of <?php echo htmlspecialchars($totalRecords); ?></span>
+                            <span style="font-size: 1.2rem; font-weight:bold;"><?php echo htmlspecialchars($totalRecords); ?></span>
                         <?php else: ?>
                             <span style="font-size: 1.2rem; font-weight:bold;">0</span>
                         <?php endif; ?>

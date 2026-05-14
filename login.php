@@ -335,11 +335,11 @@ try {
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
                             <div class="mb-3">
                                 <label for="username" class="form-label">Username</label>
-                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required autocomplete="username">
+                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" maxlength="50" required autocomplete="username">
                             </div>
                             <div class="mb-3">
                                 <label for="password" class="form-label">Password</label>
-                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" maxlength="128" required autocomplete="current-password">
                             </div>
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-primary">Login</button>

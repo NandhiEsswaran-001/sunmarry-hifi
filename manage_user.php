@@ -10,7 +10,13 @@ if (!in_array($role, ['super_admin', 'admin'])) {
 }
 
 function generateRandomPassword() {
-    return substr(str_shuffle('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'), 0, 12);
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    $password = '';
+    $max = strlen($chars) - 1;
+    for ($i = 0; $i < 16; $i++) {
+        $password .= $chars[random_int(0, $max)];
+    }
+    return $password;
 }
 
 // CSRF protection - only required for POST actions
@@ -38,10 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $redirectError('Username and password are required');
         }
         if (strlen($username) < 3) {
-            $redirectError('Username too short');
+            $redirectError('Username too short (min 3 characters)');
         }
-        if (strlen($password) < 8) {
-            $redirectError('Password must be at least 8 characters');
+        if (strlen($username) > 50) {
+            $redirectError('Username too long (max 50 characters)');
+        }
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
+            $redirectError('Username must contain only letters, numbers, and underscores');
+        }
+        if (strlen($password) < 10) {
+            $redirectError('Password must be at least 10 characters');
+        }
+        if (strlen($password) > 128) {
+            $redirectError('Password too long (max 128 characters)');
         }
         if (!preg_match('/[A-Z]/', $password)) {
             $redirectError('Password must contain at least one uppercase letter');
@@ -51,6 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if (!preg_match('/[0-9]/', $password)) {
             $redirectError('Password must contain at least one number');
+        }
+        if (!preg_match('/[!@#$%^&*(),.?":{}|<>]/', $password)) {
+            $redirectError('Password must contain at least one special character');
         }
 
         // Validate role
@@ -159,44 +177,69 @@ try {
     }
 }
 
-if (isset($_GET['action'])) {
-    $userId = $_GET['id'] ?? 0;
+// Block GET requests for reset/delete — require POST with CSRF
+if (isset($_GET['action']) && in_array($_GET['action'], ['reset', 'delete'])) {
+    header('Location: admin_dashboard.php?error=invalid_request');
+    exit();
+}
 
-    // Verify user exists and is not super_admin
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role != 'super_admin'");
-    $stmt->execute([$userId]);
-    $user = $stmt->fetch();
+// Handle POST reset and delete actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'reset') {
+        $userId = (int)($_POST['id'] ?? 0);
+        if ($userId <= 0) {
+            header('Location: admin_dashboard.php?error=invalid_request');
+            exit();
+        }
 
-    if (!$user) {
-        die('Invalid user');
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role != 'super_admin'");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch();
+        if (!$user) {
+            header('Location: admin_dashboard.php?error=invalid_user');
+            exit();
+        }
+
+        $newPassword = generateRandomPassword();
+        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $stmt->execute([password_hash($newPassword, PASSWORD_DEFAULT), $userId]);
+
+        $_SESSION['reset_password'] = $newPassword;
+        $_SESSION['reset_username'] = $user['username'];
+        header('Location: admin_dashboard.php?success=password_reset');
+        exit();
     }
 
-    switch ($_GET['action']) {
-case 'reset':
-            $newPassword = generateRandomPassword();
-            $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-            $stmt->execute([password_hash($newPassword, PASSWORD_DEFAULT), $userId]);
-
-            $_SESSION['reset_password'] = $newPassword;
-            $_SESSION['reset_username'] = $user['username'];
-            header('Location: admin_dashboard.php?success=password_reset');
+    if ($_POST['action'] === 'delete') {
+        $userId = (int)($_POST['id'] ?? 0);
+        if ($userId <= 0) {
+            header('Location: admin_dashboard.php?error=invalid_request');
             exit();
+        }
 
-        case 'delete':
-            // Don't allow deleting if it's the last manager
-            if ($user['role'] === 'manager') {
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'manager'");
-                $stmt->execute();
-                if ($stmt->fetchColumn() <= 1) {
-                    die('Cannot delete the last manager account');
-                }
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role != 'super_admin'");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch();
+        if (!$user) {
+            header('Location: admin_dashboard.php?error=invalid_user');
+            exit();
+        }
+
+        // Don't allow deleting if it's the last manager
+        if ($user['role'] === 'manager') {
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'manager'");
+            $stmt->execute();
+            if ($stmt->fetchColumn() <= 1) {
+                header('Location: admin_dashboard.php?error=Cannot delete the last manager account');
+                exit();
             }
+        }
 
-            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-            $stmt->execute([$userId]);
-            
-            header('Location: admin_dashboard.php?success=deleted');
-            exit();
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+
+        header('Location: admin_dashboard.php?success=deleted');
+        exit();
     }
 }
 
